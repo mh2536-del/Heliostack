@@ -1,0 +1,1413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Heliostack: goal-driven massing</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  --bg:#000; --ink:#f2f2ef; --dim:rgba(242,242,239,.58); --faint:rgba(242,242,239,.26); --hair:rgba(255,255,255,.12);
+  --glass:linear-gradient(180deg,rgba(255,255,255,.13),rgba(255,255,255,.045));
+  --glass-on:rgba(255,255,255,.2); --rim:rgba(255,255,255,.2); --hi:rgba(255,255,255,.14);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#000;--ink:#f2f2ef}}
+:root[data-theme="dark"]{--bg:#000}
+*,*::before,*::after{box-sizing:inherit}
+html,body{height:100%;margin:0;background:var(--bg)}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{color:var(--ink);font-family:"Schibsted Grotesk","Helvetica Neue",Arial,sans-serif;font-size:13px;line-height:1.35;overflow:hidden;-webkit-font-smoothing:antialiased;user-select:none;-webkit-user-select:none}
+#gl{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+#gl.draw{cursor:crosshair}#gl.grab{cursor:grab}#gl.dragging{cursor:grabbing}#gl.vertex{cursor:move}
+
+.glass{background:var(--glass);border:1px solid var(--rim);
+  -webkit-backdrop-filter:blur(22px) saturate(170%);backdrop-filter:blur(22px) saturate(170%);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.36),inset 0 -1px 0 rgba(255,255,255,.05),inset 0 0 18px rgba(255,255,255,.035),0 12px 34px rgba(0,0,0,.55);position:relative}
+.glass::before{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;background:radial-gradient(120% 60% at 20% -20%,rgba(255,255,255,.2),transparent 55%)}
+.fl{position:fixed}
+.cap{border-radius:999px;display:flex;align-items:center;gap:2px;padding:4px}
+.panel{border-radius:20px;padding:14px 14px 12px;width:290px;max-height:100%;overflow:auto;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.25) transparent}
+.panel[hidden]{display:none}
+.panel h2{font-size:13px;font-weight:600;margin:0 0 10px;display:flex;justify-content:space-between;align-items:baseline}
+.panel h2 small{font-weight:400;color:var(--dim);font-size:12px}
+button{font:inherit;color:var(--dim);background:transparent;border:0;border-radius:999px;padding:7px 12px;cursor:pointer;white-space:nowrap}
+button:hover{color:var(--ink)}
+button[aria-pressed="true"]{color:var(--ink);background:var(--glass-on);box-shadow:inset 0 1px 0 rgba(255,255,255,.3)}
+button:disabled{opacity:.35;cursor:default}
+.pill{border:1px solid var(--hair);padding:4px 10px;font-size:12px}
+.pill:hover{border-color:rgba(255,255,255,.35)}
+:focus-visible{outline:1.5px solid var(--ink);outline-offset:2px}
+.sep{width:1px;height:20px;background:var(--faint);margin:0 4px;flex:none}
+input[type=range]{-webkit-appearance:none;appearance:none;background:transparent;height:18px;margin:0;width:100%}
+input[type=range]::-webkit-slider-runnable-track{height:2px;background:rgba(255,255,255,.28);border-radius:2px}
+input[type=range]::-moz-range-track{height:2px;background:rgba(255,255,255,.28);border-radius:2px}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;height:13px;border-radius:50%;background:#f2f2ef;margin-top:-5.5px;box-shadow:0 1px 4px rgba(0,0,0,.6)}
+input[type=range]::-moz-range-thumb{width:13px;height:13px;border:0;border-radius:50%;background:#f2f2ef}
+input[type=number]{font:inherit;color:var(--ink);background:rgba(0,0,0,.3);border:1px solid var(--hair);border-radius:8px;padding:3px 6px;width:64px;font-variant-numeric:tabular-nums}
+.muted{color:var(--dim);font-size:12px}
+.num{font-variant-numeric:tabular-nums}
+
+.mark{padding:13px 14px 12px;flex:none!important;overflow:visible}
+.mark b{display:block;font-weight:600;font-size:15px;letter-spacing:.005em}
+.mark span{display:block;color:var(--dim);font-size:12px;line-height:1.4;margin-top:4px}
+#status{left:50%;transform:translateX(-50%);top:calc(14px + env(safe-area-inset-top,0px));padding:4px 6px 4px 14px;gap:8px;font-size:12.5px;max-width:calc(100vw - 20px)}
+#status .txt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#status .prog{width:60px;height:2px;background:rgba(255,255,255,.2);border-radius:2px;overflow:hidden}
+#status .prog i{display:block;height:100%;background:#fff;width:0}
+#topbar{right:14px;top:calc(14px + env(safe-area-inset-top,0px))}
+#leftCol{left:14px;top:calc(14px + env(safe-area-inset-top,0px));bottom:calc(78px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:10px;pointer-events:none;width:290px}
+#rightCol{right:14px;top:calc(64px + env(safe-area-inset-top,0px));bottom:calc(78px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:10px;pointer-events:none;width:340px;align-items:flex-end}
+#leftCol>*,#rightCol>*{pointer-events:auto;flex:0 1 auto;min-height:0}
+#rightCol .panel{width:340px}
+#pSun{width:262px!important}
+
+.goal{margin-bottom:11px}
+.goal .gh{display:flex;justify-content:space-between;font-size:12.5px}
+.goal .gh output{font-variant-numeric:tabular-nums}
+.goal .bar{height:3px;background:rgba(255,255,255,.12);border-radius:3px;margin:5px 0 2px;overflow:hidden}
+.goal .bar i{display:block;height:100%;background:#fff;transition:width .4s}
+.goal .w{display:grid;grid-template-columns:44px 1fr 24px;align-items:center;gap:6px;color:var(--dim);font-size:11.5px}
+.goal .w span:last-child{text-align:right;font-variant-numeric:tabular-nums}
+.total{display:flex;justify-content:space-between;align-items:baseline;border-top:1px solid var(--hair);padding-top:9px;margin-top:4px}
+.total b{font-size:22px;font-weight:500;font-variant-numeric:tabular-nums}
+.kv{display:grid;grid-template-columns:1fr auto;gap:3px 10px;font-size:12px;margin-top:8px}
+.kv span:nth-child(odd){color:var(--dim)}
+.kv span:nth-child(even){font-variant-numeric:tabular-nums;text-align:right}
+.prm{display:grid;grid-template-columns:1fr auto;gap:2px 8px;margin-bottom:9px;font-size:12.5px}
+.prm output{font-variant-numeric:tabular-nums;color:var(--ink)}
+.prm label{color:var(--dim)}
+.prm input{grid-column:1/-1}
+.seg{display:grid;gap:2px;background:rgba(0,0,0,.25);border-radius:999px;padding:3px}
+.seg button{padding:5px 0;font-size:11.5px}
+.checks{display:grid;grid-template-columns:1fr 1fr;gap:2px;margin-top:10px}
+.checks button{font-size:12px;padding:5px 8px;text-align:left}
+
+#dock{left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));max-width:calc(100vw - 20px);overflow-x:auto;scrollbar-width:none}
+#dock::-webkit-scrollbar{display:none}
+.chip{display:flex;align-items:center;gap:7px}
+.chip svg{flex:none}
+#speedWrap{display:flex;align-items:center;gap:6px;color:var(--dim);font-size:11.5px;padding:0 8px}
+#speedWrap input{width:70px}
+
+#zoneCard{position:fixed;width:244px;border-radius:18px;padding:12px 13px;display:none;z-index:6}
+#zoneCard.on{display:block}
+.zc-h{display:flex;justify-content:space-between;align-items:center;gap:6px;margin-bottom:8px}
+.zc-h b{font-weight:500;display:flex;align-items:center;gap:7px}
+.zrow{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:7px;font-size:12.5px}
+.zrow label{color:var(--dim)}
+.zrow .r{display:flex;align-items:center;gap:5px}
+.zrow input[type=number]{width:58px}
+#zTarget{width:84px!important}
+#zType{grid-template-columns:repeat(4,1fr)}
+
+#tip{position:fixed;pointer-events:none;border-radius:12px;padding:8px 10px;font-size:12px;max-width:260px;display:none;z-index:7}
+#tip.on{display:block}
+#tip b{font-weight:500;display:block;margin-bottom:3px}
+#tip div{color:var(--dim);margin-top:2px}
+#tip .why{color:var(--ink);margin-top:5px}
+
+  .dim{position:fixed;transform:translate(-50%,-50%);font-size:11px;color:var(--dim);background:#000;padding:0 4px;pointer-events:none;font-variant-numeric:tabular-nums}
+#labels{position:fixed;inset:0;pointer-events:none;overflow:hidden}
+#labels span{position:absolute;transform:translate(-50%,-50%);font-size:11px;color:var(--ink);opacity:.62;white-space:nowrap;text-shadow:0 0 4px #000,0 0 2px #000;text-align:center;line-height:1.2}
+#labels span small{display:block;color:var(--dim);font-size:10px}
+#labels span.on{opacity:1}
+
+/* history */
+.hfilter{display:flex;gap:4px;margin-bottom:8px}
+.entry{border:1px solid var(--hair);border-radius:14px;padding:8px;margin-bottom:7px;background:rgba(0,0,0,.18)}
+.entry.cur{border-color:rgba(255,255,255,.45)}
+.entry.prev{background:rgba(255,255,255,.08)}
+.eh{display:grid;grid-template-columns:96px 1fr;gap:9px;cursor:pointer}
+.eh img{width:96px;height:68px;border-radius:9px;background:#050505;display:block;border:1px solid var(--hair)}
+.et{font-size:12.5px;font-weight:500;display:flex;justify-content:space-between;gap:4px}
+.et .star{padding:0 2px;font-size:13px;line-height:1}
+.em{color:var(--dim);font-size:11.5px;margin-top:3px;font-variant-numeric:tabular-nums}
+.eb{display:flex;flex-wrap:wrap;gap:4px;margin-top:7px}
+.eb button{padding:3px 9px;font-size:11.5px;border:1px solid var(--hair)}
+.settings{margin-top:7px;max-height:230px;overflow:auto;border-top:1px solid var(--hair);padding-top:6px;scrollbar-width:thin}
+.settings h4{font-size:11px;font-weight:500;color:var(--dim);margin:8px 0 3px}
+.srow{display:grid;grid-template-columns:1fr auto;gap:8px;font-size:11.5px;padding:2px 5px;border-radius:5px}
+.srow span:last-child{text-align:right;font-variant-numeric:tabular-nums}
+.srow.ch{background:var(--hi)}
+.srow.ch span:first-child::before{content:"";display:inline-block;width:4px;height:4px;border-radius:50%;background:#fff;margin-right:5px;vertical-align:2px}
+
+#pCompare{left:50%;top:50%;transform:translate(-50%,-50%);width:min(720px,94vw);max-height:76vh;border-radius:22px;padding:16px;overflow:auto;z-index:8}
+#pCompare[hidden]{display:none}
+.cmpHead{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;align-items:end;margin-bottom:8px}
+.cmpHead img{width:100%;max-width:180px;border-radius:10px;border:1px solid var(--hair);display:block}
+.cmpRow{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;font-size:12px;padding:3px 6px;border-radius:6px}
+.cmpRow span:not(:first-child){font-variant-numeric:tabular-nums}
+.cmpRow.ch{background:var(--hi)}
+.cmpSec{font-size:11px;color:var(--dim);margin:10px 0 3px;font-weight:500}
+
+@media (max-width:820px){
+  .mark span{display:none}
+  #leftCol,#rightCol{left:10px;right:10px;width:auto;top:auto;bottom:calc(70px + env(safe-area-inset-bottom,0px));max-height:52vh;align-items:stretch}
+  #leftCol .panel,#rightCol .panel,#pSun{width:auto!important}
+  #status{top:calc(52px + env(safe-area-inset-top,0px))}
+}
+
+/* start page */
+#start{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;padding:calc(16px + env(safe-area-inset-top,0px)) 16px calc(16px + env(safe-area-inset-bottom,0px));background:rgba(0,0,0,.45);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px)}
+#start[hidden]{display:none}
+.startCard{border-radius:28px;width:min(920px,100%);max-height:100%;overflow:auto;padding:30px 32px 24px;scrollbar-width:thin}
+.startCard h1{font-size:40px;font-weight:500;letter-spacing:-.02em;margin:0;line-height:1}
+.startCard .lede{font-size:16px;line-height:1.5;color:var(--ink);max-width:62ch;margin:12px 0 22px}
+.startCard h3{font-size:12.5px;font-weight:600;margin:0 0 8px}
+.scols{display:grid;grid-template-columns:1.15fr 1fr;gap:26px}
+.steps{margin:0;padding:0;list-style:none;counter-reset:s}
+.steps li{counter-increment:s;display:grid;grid-template-columns:28px 1fr;gap:8px;margin-bottom:13px;font-size:13px;line-height:1.45;color:var(--dim)}
+.steps li::before{content:counter(s);width:22px;height:22px;border-radius:50%;border:1px solid var(--rim);display:grid;place-items:center;font-size:11.5px;color:var(--ink)}
+.steps li b{color:var(--ink);font-weight:500;display:block}
+.defs{display:grid;grid-template-columns:auto 1fr;gap:5px 12px;font-size:12.5px;margin:0 0 18px}
+.defs dt{color:var(--ink);white-space:nowrap}
+.defs dd{margin:0;color:var(--dim)}
+kbd{font:inherit;font-size:11px;border:1px solid var(--rim);border-radius:5px;padding:0 5px;color:var(--ink);background:rgba(255,255,255,.06)}
+.sfoot{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:10px;border-top:1px solid var(--hair);padding-top:16px;flex-wrap:wrap}
+.sfoot label{color:var(--dim);font-size:12.5px;display:flex;gap:7px;align-items:center}
+#startGo{background:#f2f2ef;color:#000;padding:10px 22px;font-weight:500}
+#startGo:hover{background:#fff}
+@media (max-width:760px){.scols{grid-template-columns:1fr}.startCard{padding:22px 18px}.startCard h1{font-size:30px}}
+</style>
+</head>
+<body>
+<canvas id="gl" aria-label="3D massing model"></canvas>
+<div id="labels"></div>
+
+
+<div class="fl glass cap" id="status" role="status"><span class="txt" id="stTxt">Starting</span><span class="prog" id="stProg" hidden><i></i></span><span id="stBtns" style="display:flex;gap:2px"></span></div>
+
+<div class="fl glass cap" id="topbar">
+  <button data-v="axon">Axon</button><button data-v="top">Top</button>
+  <span class="sep"></span>
+  <button data-p="pGoals" aria-pressed="true">Goals</button>
+  <button data-p="pBuild" aria-pressed="false">Parameters</button>
+  <button data-p="pSun" aria-pressed="false">Sun</button>
+  <button data-p="pHist" aria-pressed="true">History</button>
+  <span class="sep"></span>
+  <button id="towerBtn" aria-pressed="true" title="Show or hide the tower (T)">Tower</button>
+  <button id="helpBtn" title="How Heliostack works (?)" aria-label="How Heliostack works">?</button>
+</div>
+
+<div class="fl" id="leftCol">
+  <div class="glass panel mark" id="markCard"><b>Heliostack</b><span id="hint"></span></div>
+  <section class="glass panel" id="pGoals" aria-label="Generation goals">
+    <h2>Generation <small>weights set priorities</small></h2>
+    <div class="seg" id="modeSeg" style="grid-template-columns:1fr 1fr" role="group" aria-label="Generation mode"><button data-m="solver" aria-pressed="true">Solver</button><button data-m="flock" aria-pressed="false">Flock</button></div>
+    <p class="muted" id="modeNote" style="margin:7px 0 12px"></p>
+    <div id="goalRows"></div>
+    <div class="total"><span class="muted">Overall score</span><b id="totScore">–</b></div>
+    <div class="kv" id="kv"></div>
+  </section>
+  <section class="glass panel" id="pBuild" hidden aria-label="Building parameters">
+    <h2>Parameters <small id="siteInfo"></small></h2>
+    <div id="prmRows"></div>
+  </section>
+</div>
+
+<div class="fl" id="rightCol">
+  <section class="glass panel" id="pSun" hidden aria-label="Sun and display">
+    <h2>Sun path <small>Ithaca, 42.4° N</small></h2>
+    <div class="seg" id="presets" style="grid-template-columns:repeat(4,1fr)">
+      <button data-k="winter">Winter</button><button data-k="equinox">Equinox</button><button data-k="summer">Summer</button><button data-k="orbit">Orbit</button>
+    </div>
+    <div class="prm" style="margin-top:10px"><label for="tod">Time of day</label><output id="sunTime"></output><input id="tod" type="range" min="0" max="1000" value="350"></div>
+    <div class="prm"><label for="sunSpd">Sun speed</label><output id="sunO"></output><input id="sunSpd" type="range" min="0" max="100" value="20"></div>
+    <div class="prm"><label for="finAlign">Fin alignment</label><output id="finAlignO"></output><input id="finAlign" type="range" min="0" max="100" value="55"></div>
+    <div class="prm"><label for="finSep">Fin separation</label><output id="finSepO"></output><input id="finSep" type="range" min="0" max="100" value="40"></div>
+    <p class="muted" style="margin:2px 0 0">The preset also sets which sun the roof goal is scored against. Orbit scores against the equinox.</p>
+    <div class="checks" id="display">
+      <button data-l="fins" aria-pressed="true">Facade fins</button>
+      <button data-l="zones" aria-pressed="true">Zones</button>
+      <button data-l="grid" aria-pressed="true">Site grid</button>
+      <button data-l="path" aria-pressed="true">Sun path</button>
+      <button data-l="glass" aria-pressed="true">Glass tower</button>
+      <button data-l="sensors" aria-pressed="false" title="Highlight sun-sensing panels (E)">Sun sensors</button>
+    </div>
+    <p class="muted" id="sensorNote" hidden style="margin:8px 0 0"></p>
+  </section>
+  <section class="glass panel" id="pHist" aria-label="History">
+    <h2>History <small id="hCount"></small></h2>
+    <div class="hfilter">
+      <button class="pill" id="hAll" aria-pressed="true">All</button>
+      <button class="pill" id="hPinned" aria-pressed="false">Pinned</button>
+      <button class="pill" id="hCompare" disabled>Compare 0 of 2</button>
+    </div>
+    <div id="hList"></div>
+  </section>
+</div>
+
+<section class="fl glass" id="pCompare" hidden aria-label="Compare iterations"></section>
+
+<div class="glass" id="zoneCard" role="dialog" aria-label="Zone settings">
+  <div class="zc-h"><b id="zName"></b><button class="pill" id="zDel">Delete</button></div>
+  <div class="seg" id="zType"></div>
+  <div class="muted" id="zShape" style="margin-top:7px"></div>
+  <div class="zrow" id="zTargetRow"><label for="zTarget">Target floor area</label><span class="r"><input type="number" id="zTarget" min="0" step="100"> m²</span></div>
+  <div class="zrow"><label id="zRangeLbl" for="zLo">Floors</label><span class="r"><input type="number" id="zLo" min="0"> to <input type="number" id="zHi" min="0"></span></div>
+  <div class="zrow"><label for="zPrio">Priority</label><span class="r"><input type="number" id="zPrio" min="1" max="9"></span></div>
+  <div class="muted" id="zNote" style="margin-top:8px"></div>
+</div>
+
+<div class="glass" id="tip"></div>
+
+<div class="fl glass cap" id="dock" role="toolbar" aria-label="Tools">
+  <button data-t="orbit" aria-pressed="true" title="Orbit (O)">Orbit</button>
+  <button data-t="select" title="Select and edit zones (S)">Select</button>
+  <button data-t="rect" title="Draw a rectangle zone (R)">Rectangle</button>
+  <button data-t="poly" title="Draw a polygon zone (P)">Polygon</button>
+  <span class="sep"></span>
+  <span id="chips" style="display:flex;gap:2px"></span>
+  <span class="sep"></span>
+  <button id="variation" title="Explore another solution with the same inputs (N)">New variation</button>
+  <span id="speedWrap"><label for="bSpd">Build</label><input id="bSpd" type="range" min="2" max="60" value="16"></span>
+</div>
+
+<div id="start" role="dialog" aria-modal="true" aria-labelledby="startTitle">
+ <div class="glass startCard">
+  <h1 id="startTitle">Heliostack</h1>
+  <p class="lede">A massing tool for an 80 × 80 m site. You draw where programs go and decide what matters. Heliostack tests thousands of variations, builds the tower that best balances your goals within your limits, and explains why every part of it exists.</p>
+  <div class="scols">
+   <div>
+    <h3>How to work</h3>
+    <ol class="steps">
+     <li><span><b>Draw program zones</b>Pick a program in the bottom dock, then use Rectangle to drag a zone or Polygon to click its corners. Close a polygon by clicking its first point or pressing Enter.</span></li>
+     <li><span><b>Tune each zone</b>With Select, drag a zone to move it or drag its corner squares to reshape it. Its card sets the target floor area, the floors it can occupy and its priority where zones overlap.</span></li>
+     <li><span><b>Set the limits</b>In Parameters, choose floor-to-floor height, maximum height, site coverage, FAR limit and setback. These are hard rules the tower never breaks.</span></li>
+     <li><span><b>Weight your goals</b>In Generation, choose Solver (search for the best score) or Flock (every column follows local rules), then slide each priority up or down. The tower rebuilds only when you change a zone, a limit, a goal or the sun preset, then holds still.</span></li>
+     <li><span><b>Read the result</b>Each goal shows its score. Hover any floor or patch of ground to see why it was kept, removed or held at its height.</span></li>
+     <li><span><b>Compare iterations</b>History saves every rebuild with a thumbnail and full settings. Preview, restore, pin, overlay as a ghost, or compare two side by side.</span></li>
+    </ol>
+   </div>
+   <div>
+    <h3>Programs</h3>
+    <dl class="defs">
+     <dt>Housing, Retail</dt><dd>Fill floor area within their floor range, aiming for the target area.</dd>
+     <dt>Public space</dt><dd>Keeps its floors open, like a plaza. Building can bridge above on posts.</dd>
+     <dt>Landscape</dt><dd>Sets a garden level. The building below stops there, so the garden sits on its roof.</dd>
+    </dl>
+    <h3>Goals</h3>
+    <dl class="defs">
+     <dt>Maximize FAR</dt><dd>Build as much floor area as the limits allow.</dd>
+     <dt>Sunlit roof space</dt><dd>Roofs and gardens that get direct sun on the chosen day.</dd>
+     <dt>Facade daylight</dt><dd>Floor area within 12 m of a facade.</dd>
+     <dt>Open ground</dt><dd>Site left free at grade.</dd>
+     <dt>Program fit</dt><dd>Each zone close to its target area.</dd>
+     <dt>Regularity</dt><dd>Neighbouring columns share heights so floors stack cleanly.</dd>
+    </dl>
+    <h3>Keys</h3>
+    <dl class="defs">
+     <dt><kbd>O</kbd> <kbd>S</kbd> <kbd>R</kbd> <kbd>P</kbd></dt><dd>Orbit, Select, Rectangle, Polygon</dd>
+     <dt><kbd>1</kbd> to <kbd>4</kbd></dt><dd>Program for new zones</dd>
+     <dt><kbd>T</kbd></dt><dd>Show or hide the tower to focus on zones</dd>
+     <dt><kbd>E</kbd></dt><dd>Highlight the panels that sense the sun</dd>
+     <dt><kbd>N</kbd> <kbd>H</kbd> <kbd>?</kbd></dt><dd>New variation, History, this page</dd>
+     <dt>Mouse</dt><dd>Drag to orbit, right-drag to pan, scroll to zoom</dd>
+    </dl>
+   </div>
+  </div>
+  <div class="sfoot">
+   <label><input type="checkbox" id="startSkip"> Don't show this at launch</label>
+   <button id="startGo">Start designing</button>
+  </div>
+ </div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+/* ===== Heliostack engine: pure functions, no DOM ===== */
+const HS=(()=>{
+const N=20, NN=N*N, MAXF=30;
+const TYPES=[
+  {k:'housing',name:'Housing',svg:'',dash:null},
+  {k:'retail',name:'Retail',svg:'3 2',dash:[.6,.35]},
+  {k:'public',name:'Public space',svg:'0.1 2.6',dash:[.1,.28]},
+  {k:'landscape',name:'Landscape',svg:'6 2',dash:[1.3,.3]}
+];
+const GOALS=[
+  {k:'far',name:'Maximize FAR',phrase:'floor area'},
+  {k:'sun',name:'Sunlit roof space',phrase:'sunlit roofs'},
+  {k:'day',name:'Facade daylight',phrase:'daylight'},
+  {k:'open',name:'Open ground',phrase:'open ground'},
+  {k:'fit',name:'Program fit',phrase:'program targets'},
+  {k:'reg',name:'Structural regularity',phrase:'structural regularity'}
+];
+const LAT=42.44*Math.PI/180;
+const DECL={winter:-23.44,equinox:0,summer:23.44,orbit:0};
+
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function pip(x,z,pts){let ins=false;for(let i=0,j=pts.length-1;i<pts.length;j=i++){const xi=pts[i][0],zi=pts[i][1],xj=pts[j][0],zj=pts[j][1];
+  if(((zi>z)!==(zj>z))&&(x<(xj-xi)*(z-zi)/(zj-zi)+xi))ins=!ins;}return ins;}
+function polyArea(pts){let a=0;for(let i=0,j=pts.length-1;i<pts.length;j=i++)a+=(pts[j][0]+pts[i][0])*(pts[j][1]-pts[i][1]);return Math.abs(a/2);}
+function solarDir(decl,u){
+  const d=decl*Math.PI/180,H0=Math.acos(Math.max(-1,Math.min(1,-Math.tan(LAT)*Math.tan(d)))),H=-H0+u*2*H0;
+  const alt=Math.asin(Math.sin(LAT)*Math.sin(d)+Math.cos(LAT)*Math.cos(d)*Math.cos(H));
+  const az=Math.atan2(Math.sin(H),Math.cos(H)*Math.sin(LAT)-Math.tan(d)*Math.cos(LAT))+Math.PI;
+  return {x:Math.cos(alt)*Math.sin(az),y:Math.sin(alt),z:-Math.cos(alt)*Math.cos(az),H,H0,alt};
+}
+
+/* Precompute everything that depends only on inputs */
+function buildCtx(inp){
+  const P=inp.params, mf=Math.min(MAXF,P.maxFloors|0), bay=P.bay;
+  const sb=Math.ceil(P.setback/bay-1e-6);
+  const siteArea=(N*bay)*(N*bay), cellA=bay*bay;
+  const farMax=P.far*siteArea, covMax=Math.floor(P.coverage/100*NN+1e-6);
+  const zs=inp.zones;
+  const zoneAt=new Int16Array(mf*NN).fill(-1), voidAt=new Uint8Array(mf*NN);
+  const topZone=new Int16Array(NN).fill(-1), minH=new Int16Array(NN), maxH=new Int16Array(NN), buildable=new Uint8Array(NN);
+  const order=zs.map((z,i)=>i).sort((a,b)=>(zs[b].prio-zs[a].prio)||(zs[b].id-zs[a].id));
+  for(let c=0;c<NN;c++){
+    const cx=c%N,cz=(c/N)|0,X=cx-N/2+.5,Z=cz-N/2+.5;
+    const cov=order.filter(i=>pip(X,Z,zs[i].pts));
+    topZone[c]=cov.length?cov[0]:-1;
+    for(let f=0;f<mf;f++){
+      for(const i of cov){const z=zs[i];if(f>=z.lo&&f<=z.hi){zoneAt[f*NN+c]=i;break;}}
+      const zi=zoneAt[f*NN+c];
+      if(zi>=0&&zs[zi].type===2)voidAt[f*NN+c]=1;
+    }
+    const inSet=cx>=sb&&cz>=sb&&cx<N-sb&&cz<N-sb;
+    buildable[c]=inSet?1:0;
+    if(!inSet){minH[c]=0;maxH[c]=0;}
+    else if(topZone[c]>=0&&zs[topZone[c]].type===3){const L=zs[topZone[c]];minH[c]=Math.min(mf,L.lo);maxH[c]=Math.min(mf,Math.max(L.lo,L.hi));}
+    else{minH[c]=0;maxH[c]=mf;}
+  }
+  const movable=[];for(let c=0;c<NN;c++)if(maxH[c]>minH[c])movable.push(c);
+  const decl=DECL[inp.sun]??0, dirs=[];
+  for(const u of [.15,.32,.5,.68,.85]){const s=solarDir(decl,u);if(s.alt<.05)continue;
+    const hl=Math.hypot(s.x,s.z)||1e-6;dirs.push({sx:s.x/hl*.5,sz:s.z/hl*.5,dF:.5*bay*(s.y/hl)/P.ffh});}
+  const W=GOALS.map(g=>Math.max(0,inp.goals[g.k]||0));
+  const depthB=Math.max(1,Math.floor(12/bay+1e-6));
+  return {inp,P,mf,bay,sb,siteArea,cellA,farMax,covMax,zs,zoneAt,voidAt,topZone,minH,maxH,buildable,movable,dirs,W,depthB,
+    dist:new Int16Array(mf*NN),queue:new Int32Array(NN)};
+}
+
+function evaluate(ctx,h,detail){
+  const {mf,zs,zoneAt,voidAt,cellA}=ctx;
+  let cells=0,groundCov=0,footprint=0,maxh=0;
+  const zoneCells=new Float64Array(zs.length);
+  for(let c=0;c<NN;c++){const hc=h[c];if(hc>maxh)maxh=hc;let any=0;
+    for(let f=0;f<hc;f++){const idx=f*NN+c;if(voidAt[idx])continue;cells++;any=1;const z=zoneAt[idx];if(z>=0)zoneCells[z]++;if(f===0)groundCov++;}
+    footprint+=any;}
+  const GFA=cells*cellA;
+  const valid=footprint<=ctx.covMax&&GFA<=ctx.farMax+1e-6;
+  const solid=(f,c)=>f<h[c]&&!voidAt[f*NN+c];
+  // daylight: distance (in bays) from the nearest outside face, per floor
+  const dist=ctx.dist,q=ctx.queue;let daylit=0;
+  for(let f=0;f<maxh;f++){
+    let qh=0,qt=0;const base=f*NN;
+    for(let c=0;c<NN;c++){
+      if(!solid(f,c)){dist[base+c]=0;continue;}
+      const x=c%N,z=(c/N)|0;
+      const edge=x===0||z===0||x===N-1||z===N-1||!solid(f,c-1)||!solid(f,c+1)||!solid(f,c-N)||!solid(f,c+N);
+      if(edge){dist[base+c]=1;q[qt++]=c;}else dist[base+c]=-1;
+    }
+    while(qh<qt){const c=q[qh++],d=dist[base+c],x=c%N,z=(c/N)|0;
+      const nb=[x>0?c-1:-1,x<N-1?c+1:-1,z>0?c-N:-1,z<N-1?c+N:-1];
+      for(const n of nb){if(n>=0&&dist[base+n]===-1){dist[base+n]=d+1;q[qt++]=n;}}}
+    for(let c=0;c<NN;c++)if(dist[base+c]>0&&dist[base+c]<=ctx.depthB)daylit++;
+  }
+  // sun on roofs and gardens
+  let wSum=0,litSum=0,sunArea=0;const litCol=detail?new Float32Array(NN).fill(-1):null;
+  for(let c=0;c<NN;c++){
+    let level=-1,w=1;const tz=ctx.topZone[c],land=tz>=0&&zs[tz].type===3;
+    if(h[c]>0){for(let f=h[c]-1;f>=0;f--)if(!voidAt[f*NN+c]){level=f+1;break;}}
+    else if(land)level=0;
+    if(level<0)continue;
+    if(land)w=1.5;
+    let lit=0;const x0=c%N+.5,z0=((c/N)|0)+.5;
+    for(const d of ctx.dirs){let ok=1;
+      for(let s=1;s<90;s++){const fy=level+d.dF*s;if(fy>=maxh)break;
+        const gx=Math.floor(x0+d.sx*s),gz=Math.floor(z0+d.sz*s);if(gx<0||gz<0||gx>=N||gz>=N)break;
+        const cc=gz*N+gx;if(solid(Math.floor(fy),cc)){ok=0;break;}}
+      lit+=ok;}
+    const fr=ctx.dirs.length?lit/ctx.dirs.length:0;
+    wSum+=w;litSum+=w*fr;sunArea+=fr*cellA;if(litCol)litCol[c]=fr;
+  }
+  const meanLit=wSum?litSum/wSum:0;
+  // regularity: neighbouring built columns share heights
+  let pairs=0,eq=0;
+  for(let c=0;c<NN;c++){if(!h[c])continue;const x=c%N,z=(c/N)|0;
+    if(x<N-1&&h[c+1]){pairs++;const d=Math.abs(h[c]-h[c+1]);eq+=d===0?1:d===1?.6:d<=3?.25:0;}
+    if(z<N-1&&h[c+N]){pairs++;const d=Math.abs(h[c]-h[c+N]);eq+=d===0?1:d===1?.6:d<=3?.25:0;}
+    const nb=(x>0&&h[c-1])||(x<N-1&&h[c+1])||(z>0&&h[c-N])||(z<N-1&&h[c+N]);if(!nb)pairs+=3;}
+  let fitN=0,fitS=0;const zoneArea=[];
+  zs.forEach((z,i)=>{const a=zoneCells[i]*cellA;zoneArea.push(a);if((z.type===0||z.type===1)&&z.target>0){fitN++;fitS+=Math.max(0,1-Math.abs(a-z.target)/z.target);}});
+  const s={
+    far:Math.min(1,GFA/Math.max(1,ctx.farMax)),
+    sun:wSum?.6*meanLit+.4*Math.min(1,sunArea/(.35*ctx.siteArea)):0,
+    day:cells?daylit/cells:0,
+    open:1-groundCov/NN,
+    fit:fitN?fitS/fitN:1,
+    reg:pairs?eq/pairs:(footprint?1:0)
+  };
+  let tw=0,tot=0;GOALS.forEach((g,i)=>{tw+=ctx.W[i];tot+=ctx.W[i]*s[g.k];});
+  const out={valid,total:tw?tot/tw:0,s,GFA,cells,footprint,groundCov,sunArea,zoneArea,far:GFA/ctx.siteArea,coverage:footprint/NN,maxh};
+  if(detail){out.dist=dist.slice(0,maxh*NN);out.litCol=litCol;}
+  return out;
+}
+
+function initial(ctx){
+  const {zs,zoneAt,mf}=ctx,h=new Int16Array(NN);
+  for(let c=0;c<NN;c++){
+    if(!ctx.buildable[c])continue;
+    let t=0;
+    for(const z of zs){if((z.type===0||z.type===1)&&pip(c%N-N/2+.5,((c/N)|0)-N/2+.5,z.pts))t=Math.max(t,Math.min(mf,z.hi+1));}
+    h[c]=Math.max(ctx.minH[c],Math.min(ctx.maxH[c],t));
+  }
+  repair(ctx,h);return h;
+}
+function counts(ctx,h){let cells=0,fp=0;for(let c=0;c<NN;c++){let any=0;for(let f=0;f<h[c];f++)if(!ctx.voidAt[f*NN+c]){cells++;any=1;}fp+=any;}return {gfa:cells*ctx.cellA,fp};}
+function repair(ctx,h){
+  for(let guard=0;guard<20000;guard++){
+    const k=counts(ctx,h);
+    if(k.gfa>ctx.farMax+1e-6){let best=-1;for(const c of ctx.movable)if(h[c]>ctx.minH[c]&&(best<0||h[c]>h[best]))best=c;if(best<0)break;h[best]--;continue;}
+    if(k.fp>ctx.covMax){let best=-1;for(const c of ctx.movable)if(h[c]>0&&ctx.minH[c]===0&&(best<0||h[c]<h[best]||(h[c]===h[best]&&ctx.topZone[c]<ctx.topZone[best])))best=c;if(best<0)break;h[best]=0;continue;}
+    break;
+  }
+}
+
+/* Seeded simulated annealing over column heights. Same inputs + same variation = same tower. */
+function* solve(ctx,variation,iters=2600){
+  const rng=mulberry32((variation*2654435761)>>>0^0x9e3779b9);
+  let h=initial(ctx),cur=evaluate(ctx,h);
+  let best=h.slice(),bestE=cur;
+  const mv=ctx.movable,clamp=(c,v)=>Math.max(ctx.minH[c],Math.min(ctx.maxH[c],v));
+  for(let it=0;it<iters;it++){
+    if(!mv.length)break;
+    const T=.025*(1-it/iters)+.0008;
+    const c=mv[Math.floor(rng()*mv.length)],r=rng(),nh=h.slice();
+    const x=c%N,z=(c/N)|0;
+    if(r<.42){nh[c]=clamp(c,h[c]+(rng()<.5?-1:1)*(1+Math.floor(rng()*3)));}
+    else if(r<.64){const d=[[1,0],[-1,0],[0,1],[0,-1]][Math.floor(rng()*4)],X=x+d[0],Z=z+d[1];if(X<0||Z<0||X>=N||Z>=N)continue;nh[c]=clamp(c,h[Z*N+X]);}
+    else if(r<.74){nh[c]=clamp(c,0);}
+    else{const s=2+Math.floor(rng()*2),v=h[c]+Math.floor(rng()*5)-2;
+      for(let j=0;j<s;j++)for(let i=0;i<s;i++){const X=x+i,Z=z+j;if(X>=N||Z>=N)continue;const cc=Z*N+X;nh[cc]=clamp(cc,v);}}
+    let same=true;for(let i=0;i<NN;i++)if(nh[i]!==h[i]){same=false;break;}
+    if(same)continue;
+    const e=evaluate(ctx,nh);
+    if(!e.valid&&cur.valid)continue;
+    const d=e.total-cur.total;
+    if(d>=0||rng()<Math.exp(d/T)||(!cur.valid&&e.valid)){h=nh;cur=e;if((e.valid&&!bestE.valid)||(e.valid===bestE.valid&&e.total>bestE.total)){best=nh.slice();bestE=e;}}
+    if(it%25===0)yield it/iters;
+  }
+  return {h:best,e:evaluate(ctx,best,true)};
+}
+
+
+/* Flocking mode: every column is an agent that adjusts its own height
+   from local rules only (plus shared FAR/coverage budgets, like a flock's shared airspace). */
+const RULES=[
+  {k:'coh',name:'Cohesion',goal:'reg'},
+  {k:'sep',name:'Separation',goal:'day'},
+  {k:'sun',name:'Sun courtesy',goal:'sun'},
+  {k:'grow',name:'Growth',goal:'far'},
+  {k:'open',name:'Restraint',goal:'open'}
+];
+function* flock(ctx,h0,variation,maxTicks=480){
+  const rng=mulberry32((variation*40503+17)>>>0);
+  const {zs,zoneAt,voidAt,mf,cellA}=ctx,w={};GOALS.forEach((g,i)=>w[g.k]=ctx.W[i]/100);
+  const h=Int16Array.from(h0);for(let c=0;c<NN;c++)h[c]=Math.max(ctx.minH[c],Math.min(ctx.maxH[c],h[c]));repair(ctx,h);
+  const hf=Float32Array.from(h),forces=new Float32Array(NN*5);ctx.forces=forces;
+  // average sun: the shadow side is opposite the sun's horizontal direction
+  let sx=0,sz=0,dF=0;for(const d of ctx.dirs){sx+=d.sx;sz+=d.sz;dF+=d.dF;}
+  const n=ctx.dirs.length||1,len=Math.hypot(sx,sz)||1,ox=Math.round(-sx/len),oz=Math.round(-sz/len);
+  const step=Math.max(.35,2*dF/n); // floors of drop per bay that keeps the shadow-side roof lit at mid-day
+  // shared tallies
+  let cells=0,fp=0;const zc=new Float64Array(zs.length);
+  const tally=(c,a,b,sg)=>{for(let f=a;f<b;f++){const i=f*NN+c;if(voidAt[i])continue;cells+=sg;const z=zoneAt[i];if(z>=0)zc[z]+=sg;}};
+  for(let c=0;c<NN;c++){tally(c,0,h[c],1);if(h[c]>0)fp++;}
+  const progZ=[];for(let c=0;c<NN;c++){const l=[];zs.forEach((z,i)=>{if(z.type<2&&z.target>0&&pip(c%N-N/2+.5,((c/N)|0)-N/2+.5,z.pts))l.push(i);});progZ.push(l);}
+  const r=ctx.depthB,order=ctx.movable.slice();let still=0;
+  for(let t=0;t<maxTicks;t++){
+    for(let i=order.length-1;i>0;i--){const j=Math.floor(rng()*(i+1));[order[i],order[j]]=[order[j],order[i]];}
+    let changed=0;const farDef=Math.max(-1,1-cells*cellA/ctx.farMax);
+    for(const c of order){
+      const x=c%N,z=(c/N)|0,hc=h[c];
+      // cohesion: match the built neighbours
+      let sum=0,cnt=0;for(const [dx,dz] of [[1,0],[-1,0],[0,1],[0,-1]]){const X=x+dx,Z=z+dz;if(X<0||Z<0||X>=N||Z>=N)continue;const v=h[Z*N+X];if(v>0){sum+=v;cnt++;}}
+      let coh=0;if(cnt>=2||(cnt>=1&&hc>0))coh=w.reg*(sum/cnt-hc)*.3;else if(hc>0)coh=-w.reg*.7;
+      // separation: a top floor enclosed on all sides within 12 m is deep plan, so it backs off
+      let sep=0;if(hc>0){let tot=0,enc=0;for(let dz=-r;dz<=r;dz++)for(let dx=-r;dx<=r;dx++){if(!dx&&!dz)continue;tot++;const X=x+dx,Z=z+dz;if(X>=0&&Z>=0&&X<N&&Z<N&&h[Z*N+X]>=hc)enc++;}
+        const fr=enc/tot;if(fr>.8)sep=-w.day*1.8*(fr-.8)/.2;}
+      // sun courtesy: don't tower over the neighbour on your shadow side
+      let sun=0;{const X=x+ox,Z=z+oz,hn=(X>=0&&Z>=0&&X<N&&Z<N)?h[Z*N+X]:0,ex=hc-hn-step;if(ex>0)sun=-w.sun*.22*ex;}
+      // growth: zone demand plus the shared FAR budget
+      let grow=0;
+      for(const zi of progZ[c]){const Zn=zs[zi];if(hc>Zn.hi)continue;grow=Math.max(grow,w.fit*1.3*Math.max(-1,Math.min(1,(Zn.target-zc[zi]*cellA)/Zn.target)));}
+      if(progZ[c].length===0&&hc===0&&cnt===0){}else grow+=w.far*farDef*(progZ[c].length?.6:.45);
+      // restraint: keep ground open unless something is pulling
+      const open=hc>0?-w.open*(progZ[c].length?.08:.22):0;
+      const noise=(rng()-.5)*.14,b=c*5;
+      forces[b]=coh;forces[b+1]=sep;forces[b+2]=sun;forces[b+3]=grow;forces[b+4]=open;
+      hf[c]=Math.max(ctx.minH[c],Math.min(ctx.maxH[c],hf[c]+.35*(coh+sep+sun+grow+open+noise)));
+      let nh=Math.round(hf[c]);
+      if(nh>hc){
+        if(hc===0&&fp>=ctx.covMax){nh=0;hf[c]=.45;}
+        else{let add=0;for(let f=hc;f<nh;f++)if(!voidAt[f*NN+c])add++;
+          if((cells+add)*cellA>ctx.farMax+1e-6){nh=hc;hf[c]=hc+.45;}}
+      }
+      if(nh!==hc){if(nh>hc)tally(c,hc,nh,1);else tally(c,nh,hc,-1);if(hc===0)fp++;if(nh===0)fp--;h[c]=nh;changed++;}
+    }
+    yield {h,tick:t,changed};
+    still=changed===0?still+1:0;if(still>30&&t>80)break;
+  }
+  return {h:Int16Array.from(h)};
+}
+
+/* Turn a height field into displayable cells */
+function realize(ctx,h){
+  const cells=new Uint8Array(MAXF*NN),prog=new Uint8Array(MAXF*NN),garden=new Uint8Array(NN);
+  for(let c=0;c<NN;c++){
+    for(let f=0;f<h[c]&&f<ctx.mf;f++){const i=f*NN+c;if(ctx.voidAt[i])continue;cells[i]=1;const z=ctx.zoneAt[i];prog[i]=z>=0&&ctx.zs[z].type<2?ctx.zs[z].type+1:0;}
+    const tz=ctx.topZone[c];if(tz>=0&&ctx.zs[tz].type===3)garden[c]=1;
+  }
+  return {cells,prog,garden,h:Int16Array.from(h)};
+}
+
+return {RULES,flock,N,NN,MAXF,TYPES,GOALS,LAT,DECL,mulberry32,pip,polyArea,solarDir,buildCtx,evaluate,solve,realize,initial};
+})();
+if(typeof module!=='undefined')module.exports=HS;
+</script>
+<script>
+(()=>{
+"use strict";
+const {N,NN,MAXF,TYPES,GOALS}=HS;
+const $=s=>document.querySelector(s);
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const fmt=n=>Math.round(n).toLocaleString('en-US');
+const pct=v=>Math.round(v*100)+'%';
+const swatch=t=>`<svg width="14" height="14" viewBox="0 0 14 14"><circle cx="7" cy="7" r="5.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" ${TYPES[t].svg?`stroke-dasharray="${TYPES[t].svg}"`:''}/></svg>`;
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* ================= state ================= */
+const PRM=[
+  {k:'ffh',name:'Floor-to-floor height',min:2.8,max:6,step:.1,unit:' m'},
+  {k:'maxFloors',name:'Maximum height',min:2,max:30,step:1,unit:' floors'},
+  {k:'coverage',name:'Maximum site coverage',min:10,max:100,step:1,unit:'%'},
+  {k:'far',name:'FAR limit',min:.5,max:12,step:.1,unit:''},
+  {k:'setback',name:'Setback from site edge',min:0,max:30,step:1,unit:' m'}
+];
+const SITE_M=80; // fixed site, 80 x 80 m on a 4 m planning grid (20 x 20 cells)
+let params={bay:SITE_M/N,ffh:3.6,maxFloors:18,coverage:60,far:4,setback:4};
+let goals={far:60,sun:45,day:55,open:30,fit:70,reg:50};
+let zones=[],nextZoneId=1,letter=0,variation=1,sunPreset='equinox',genMode='solver';
+let finAlign=.55,finSep=.4;
+let tod=.35,sunA=.8,sunSpeed=.2,buildSpeed=16;
+const ZDEF=[{target:6000,lo:2,hi:17,prio:2},{target:2000,lo:0,hi:1,prio:3},{target:0,lo:0,hi:0,prio:5},{target:0,lo:0,hi:0,prio:4}];
+const history=[];let histN=0,curEntry=null,previewEntry=null,ghostEntry=null,compareSel=[],histFilter='all';
+const openSettings=new Set();
+let live=null; // {entry,ctx,h,e}
+
+function inputs(){return {params:{...params},goals:{...goals},sun:sunPreset,variation,mode:genMode,
+  zones:zones.map(z=>({id:z.id,type:z.type,name:z.name,kind:z.kind,pts:z.pts.map(p=>[p[0],p[1]]),target:z.target,lo:z.lo,hi:z.hi,prio:z.prio}))};}
+
+/* ================= three.js scene ================= */
+const canvas=$('#gl');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true});
+renderer.setPixelRatio(Math.min(2,devicePixelRatio||1));
+renderer.setClearColor(0x000000,1);
+renderer.outputEncoding=THREE.sRGBEncoding;
+renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+const scene=new THREE.Scene();
+const VIEW=36;
+const camera=new THREE.OrthographicCamera(-1,1,1,-1,.1,500);
+const controls=new THREE.OrbitControls(camera,canvas);
+controls.enableDamping=true;controls.dampingFactor=.09;controls.screenSpacePanning=true;
+controls.minPolarAngle=0;controls.maxPolarAngle=Math.PI;controls.minZoom=.35;controls.maxZoom=8;controls.rotateSpeed=.75;
+const DEF_TARGET=new THREE.Vector3(0,3,0);
+scene.add(new THREE.HemisphereLight(0xffffff,0x141414,.42));
+const sunL=new THREE.DirectionalLight(0xffffff,1.25);
+sunL.castShadow=true;sunL.shadow.mapSize.set(2048,2048);
+Object.assign(sunL.shadow.camera,{left:-20,right:20,top:20,bottom:-20,near:1,far:120});
+sunL.shadow.bias=-.0006;sunL.shadow.normalBias=.02;scene.add(sunL,sunL.target);
+const fill=new THREE.DirectionalLight(0xffffff,.2);scene.add(fill);
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(800,800),new THREE.MeshBasicMaterial({color:0x000000}));
+ground.rotation.x=-Math.PI/2;scene.add(ground);
+const siteGrid=new THREE.Group();scene.add(siteGrid);
+function buildSiteGrid(){
+  siteGrid.children.slice().forEach(o=>{siteGrid.remove(o);o.geometry.dispose();});
+  const pts=[],h=N/2;for(let i=0;i<=N;i++){const t=i-h;pts.push(-h,0,t,h,0,t,t,0,-h,t,0,h);}
+  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pts,3));
+  const grid=new THREE.LineSegments(g,new THREE.LineBasicMaterial({color:0x161616}));grid.position.y=.002;siteGrid.add(grid);
+  const sq=s=>new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-s,0,-s),new THREE.Vector3(s,0,-s),new THREE.Vector3(s,0,s),new THREE.Vector3(-s,0,s)]);
+  const out=new THREE.LineLoop(sq(h),new THREE.LineBasicMaterial({color:0x3e3e3c}));out.position.y=.003;siteGrid.add(out);
+  const sb=Math.ceil(params.setback/params.bay-1e-6);
+  // dimension lines, one grid cell outside the site
+  const dm=new THREE.LineBasicMaterial({color:0x6a6a68}),o=h+1.2,t=.35,dp=[
+    -h,0,o,h,0,o, -h,0,o-t,-h,0,o+t, h,0,o-t,h,0,o+t,
+    o,0,-h,o,0,h, o-t,0,-h,o+t,0,-h, o-t,0,h,o+t,0,h];
+  const dg=new THREE.BufferGeometry();dg.setAttribute('position',new THREE.Float32BufferAttribute(dp,3));siteGrid.add(new THREE.LineSegments(dg,dm));
+  if(sb>0&&sb<h){const m=new THREE.LineDashedMaterial({color:0x4a4a48,dashSize:.25,gapSize:.25});const l=new THREE.LineLoop(sq(h-sb),m);l.computeLineDistances();l.position.y=.003;siteGrid.add(l);}
+}
+
+const perf=(()=>{const c=document.createElement('canvas');c.width=128;c.height=256;const g=c.getContext('2d');
+  g.fillStyle='#fff';g.fillRect(0,0,128,256);g.fillStyle='#000';
+  const cols=4,rows=10,m=10,px=(128-2*m)/cols,py=(256-2*m)/rows,r=Math.min(px,py)*.3;
+  for(let j=0;j<rows;j++)for(let i=0;i<cols;i++){const x=m+px*(i+.5)+(j%2?px*.25:-px*.25),y=m+py*(j+.5);g.beginPath();g.arc(x,y,r,0,Math.PI*2);g.fill();}
+  const t=new THREE.CanvasTexture(c);t.anisotropy=renderer.capabilities.getMaxAnisotropy();return t;})();
+
+const CAP=NN*MAXF,FINCAP=30000;
+function inst(mat,cap){const m=new THREE.InstancedMesh(new THREE.BufferGeometry(),mat,cap);m.instanceColor=new THREE.InstancedBufferAttribute(new Float32Array(cap*3).fill(1),3);m.count=0;m.frustumCulled=false;m.castShadow=true;m.receiveShadow=true;scene.add(m);return m;}
+const envMap=(()=>{const c=document.createElement('canvas');c.width=512;c.height=256;const g=c.getContext('2d');
+  const gr=g.createLinearGradient(0,0,0,256);gr.addColorStop(0,'#3a3a3a');gr.addColorStop(.42,'#8c8c8c');gr.addColorStop(.5,'#ffffff');gr.addColorStop(.54,'#4a4a4a');gr.addColorStop(1,'#020202');
+  g.fillStyle=gr;g.fillRect(0,0,512,256);g.fillStyle='rgba(255,255,255,.95)';g.fillRect(40,34,90,34);g.fillRect(280,22,150,26);g.fillRect(200,80,40,18);
+  const t=new THREE.CanvasTexture(c);t.mapping=THREE.EquirectangularReflectionMapping;t.encoding=THREE.sRGBEncoding;
+  const pm=new THREE.PMREMGenerator(renderer);const out=pm.fromEquirectangular(t).texture;pm.dispose();return out;})();
+const slabs=inst(new THREE.MeshStandardMaterial({color:0x555553,roughness:.85,envMap,envMapIntensity:.25}),CAP);
+const solidMat=new THREE.MeshStandardMaterial({color:0xffffff,roughness:.5});
+const glassMat=new THREE.MeshPhysicalMaterial({color:0xffffff,metalness:0,roughness:.05,transparent:true,opacity:.34,clearcoat:1,clearcoatRoughness:.04,
+  reflectivity:1,envMap,envMapIntensity:1.6,depthWrite:false});
+let glassOn=true;
+const cores=inst(glassMat,CAP);cores.renderOrder=4;
+const roofs=inst(new THREE.MeshStandardMaterial({color:0xffffff,roughness:.85}),CAP);
+const posts=inst(new THREE.MeshStandardMaterial({color:0xdedede,roughness:.6}),CAP);
+const fins=inst(new THREE.MeshStandardMaterial({color:0xffffff,roughness:.55,alphaMap:perf,alphaTest:.5,side:THREE.DoubleSide}),FINCAP);
+fins.customDepthMaterial=new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking,alphaMap:perf,alphaTest:.5,side:THREE.DoubleSide});
+let geomFh=0;
+function makeGeoms(fh){
+  geomFh=fh;
+  const set=(m,g)=>{m.geometry.dispose();m.geometry=g;};
+  set(slabs,new THREE.BoxGeometry(1,.06,1));
+  const cw=glassOn?.94:.72;set(cores,new THREE.BoxGeometry(cw,Math.max(.1,fh-.06),cw));
+  set(roofs,new THREE.BoxGeometry(1,.06,1));
+  set(posts,new THREE.BoxGeometry(.09,fh,.09));
+  set(fins,new THREE.PlaneGeometry(.31,Math.max(.08,fh-.1)));
+}
+const COLC=[new THREE.Color('#d8dadb'),new THREE.Color('#ffffff'),new THREE.Color('#9a9c9e')];
+const ROOF_PLAIN=new THREE.Color('#555553'),ROOF_GARDEN=new THREE.Color('#5c5c5a');
+const dummy=new THREE.Object3D();
+cores.setColorAt(0,COLC[0]);roofs.setColorAt(0,ROOF_PLAIN);cores.castShadow=false;
+const FIN_ON=new THREE.Color('#7c7c79'),FIN_SENSOR=new THREE.Color('#ff7a1a');let showSensors=false,sensorStat=[0,0];
+fins.setColorAt(0,FIN_ON);
+const finCell=new Int32Array(FINCAP),finYaw=new Float32Array(FINCAP),finX=new Float32Array(FINCAP),finY=new Float32Array(FINCAP),finZ=new Float32Array(FINCAP);
+const instCell=new Int32Array(CAP);
+let finCount=0,dirty=true;
+let disp=null,shownFloors=0,dispTop=0,building=false,buildAcc=0;
+const panelP=new Float32Array(CAP).fill(.6),panelV=new Float32Array(CAP),sensor=new Uint8Array(CAP),shadowF=new Uint8Array(CAP);
+const tieSign=new Int8Array(CAP);for(let i=0;i<CAP;i++){sensor[i]=Math.random()<.15?1:0;tieSign[i]=((Math.imul(i,2654435761)>>>16)&1)?1:-1;}
+const DIRS=[[1,0],[-1,0],[0,1],[0,-1]];
+const solidD=(f,x,z)=>disp&&f>=0&&f<shownFloors&&x>=0&&z>=0&&x<N&&z<N&&disp.cells[f*NN+z*N+x]===1;
+
+function setGlass(on){glassOn=on;cores.material=on?glassMat:solidMat;cores.castShadow=!on;makeGeoms(geomFh||params.ffh/params.bay);dirty=true;}
+let towerOn=true;
+function setTower(on){towerOn=on;for(const m of [slabs,cores,roofs,posts])m.visible=on;fins.visible=on&&L.fins;ghostLine.visible=!!ghostEntry&&on;
+  $('#towerBtn').setAttribute('aria-pressed',on);hideTip();$('#hint').textContent=on?$('#hint').textContent:'Tower hidden. Draw and edit zones freely; press T to bring it back.';if(on)updateHint();}
+function setDisplay(res,prm,animate){
+  const fh=prm.ffh/prm.bay;
+  if(Math.abs(fh-geomFh)>1e-6)makeGeoms(fh);
+  disp={cells:res.cells,prog:res.prog,garden:res.garden,fh};
+  dispTop=0;for(let f=0;f<MAXF;f++)for(let c=0;c<NN;c++)if(res.cells[f*NN+c]){dispTop=Math.max(dispTop,f+1);}
+  if(animate&&!reduce){shownFloors=0;building=true;buildAcc=0;}else{shownFloors=dispTop;building=false;}
+  dirty=true;
+}
+function rebuildInstances(){
+  if(!disp)return;
+  const fh=disp.fh;let c=0,r=0,fi=0,pi=0;
+  dummy.rotation.set(0,0,0);dummy.scale.set(1,1,1);
+  for(let f=0;f<shownFloors;f++){
+    for(let cc=0;cc<NN;cc++){const idx=f*NN+cc;if(!disp.cells[idx])continue;
+      const x=cc%N,z=(cc/N)|0,X=x-N/2+.5,Z=z-N/2+.5,y0=f*fh;
+      dummy.position.set(X,y0+.03,Z);dummy.updateMatrix();slabs.setMatrixAt(c,dummy.matrix);
+      dummy.position.set(X,y0+.06+(fh-.06)/2,Z);dummy.updateMatrix();cores.setMatrixAt(c,dummy.matrix);
+      cores.setColorAt(c,COLC[disp.prog[idx]]);instCell[c]=idx;c++;
+      if(!solidD(f+1,x,z)){dummy.position.set(X,y0+fh+.03,Z);dummy.updateMatrix();roofs.setMatrixAt(r,dummy.matrix);roofs.setColorAt(r,disp.garden[cc]?ROOF_GARDEN:ROOF_PLAIN);r++;}
+      for(const [dx,dz] of DIRS){
+        if(solidD(f,x+dx,z+dz))continue;
+        const yaw=dx!==0?Math.PI/2:0,tx=dz!==0?1:0,tz=dx!==0?1:0;
+        for(const o of [-.32,0,.32]){if(fi>=FINCAP)break;fins.setColorAt(fi,showSensors&&sensor[idx]?FIN_SENSOR:FIN_ON);finCell[fi]=idx;finYaw[fi]=yaw;finX[fi]=X+dx*.5+tx*o;finZ[fi]=Z+dz*.5+tz*o;finY[fi]=y0+.06+(fh-.06)/2;fi++;}
+      }
+    }}
+  // gardens at grade and posts under lifted floors (public space below)
+  for(let cc=0;cc<NN;cc++){const x=cc%N,z=(cc/N)|0,X=x-N/2+.5,Z=z-N/2+.5;
+    let any=false;for(let f=0;f<shownFloors;f++)if(disp.cells[f*NN+cc]){any=true;break;}
+    if(!any&&disp.garden[cc]){dummy.position.set(X,.015,Z);dummy.updateMatrix();roofs.setMatrixAt(r,dummy.matrix);roofs.setColorAt(r,ROOF_GARDEN);r++;}
+    if(any&&(x+z)%2===0){for(let f=0;f<shownFloors;f++){if(disp.cells[f*NN+cc])break;dummy.position.set(X,f*fh+fh/2,Z);dummy.updateMatrix();posts.setMatrixAt(pi++,dummy.matrix);}}
+  }
+  slabs.count=cores.count=c;roofs.count=r;fins.count=finCount=fi;posts.count=pi;
+  if(fins.instanceColor)fins.instanceColor.needsUpdate=true;
+  {let sc=0,tc=0;const seen=new Set();for(let j=0;j<fi;j++)seen.add(finCell[j]);seen.forEach(id=>{tc++;if(sensor[id])sc++;});sensorStat=[sc,tc];updateSensorNote();}
+  for(const m of [slabs,cores,roofs,posts])m.instanceMatrix.needsUpdate=true;
+  if(cores.instanceColor)cores.instanceColor.needsUpdate=true;
+  if(roofs.instanceColor)roofs.instanceColor.needsUpdate=true;
+}
+function updateFins(){
+  for(let j=0;j<finCount;j++){const p=panelP[finCell[j]];
+    dummy.position.set(finX[j],finY[j],finZ[j]);dummy.rotation.set(0,finYaw[j]+p*Math.PI/2*.92,0);dummy.updateMatrix();fins.setMatrixAt(j,dummy.matrix);}
+  fins.instanceMatrix.needsUpdate=true;
+}
+
+/* ================= sun ================= */
+const PRESET_LABEL={winter:'Dec 21',equinox:'Mar 20',summer:'Jun 21'};
+const S=new THREE.Vector3(),PATH_R=17;
+const pathGroup=new THREE.Group();scene.add(pathGroup);
+const pathMat=new THREE.LineDashedMaterial({color:0x9a9a97,dashSize:.5,gapSize:.35});
+let pathLine=null;
+const sunMark=new THREE.Mesh(new THREE.SphereGeometry(.42,24,16),new THREE.MeshBasicMaterial({color:0xffffff}));pathGroup.add(sunMark);
+const hourTicks=new THREE.Group();pathGroup.add(hourTicks);
+const sv=s=>new THREE.Vector3(s.x,s.y,s.z);
+function buildSunPath(){
+  if(pathLine){pathGroup.remove(pathLine);pathLine.geometry.dispose();pathLine=null;}
+  hourTicks.children.slice().forEach(o=>{hourTicks.remove(o);o.geometry.dispose();});
+  if(sunPreset==='orbit')return;
+  const decl=HS.DECL[sunPreset],pts=[];
+  for(let a=0;a<=120;a++)pts.push(sv(HS.solarDir(decl,a/120)).multiplyScalar(PATH_R));
+  pathLine=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),pathMat);pathLine.computeLineDistances();pathGroup.add(pathLine);
+  const H0=HS.solarDir(decl,0).H0,tick=[];
+  for(let h=-12;h<=12;h++){const H=h*Math.PI/12;if(Math.abs(H)>H0)continue;const p=sv(HS.solarDir(decl,(H+H0)/(2*H0)));tick.push(p.clone().multiplyScalar(PATH_R),p.clone().multiplyScalar(PATH_R-.9));}
+  hourTicks.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(tick),new THREE.LineBasicMaterial({color:0xbdbdba})));
+}
+const north=(()=>{const g=new THREE.Group(),R0=N/2+3.2;
+  const sh=new THREE.Shape();sh.moveTo(0,-1.1);sh.lineTo(.5,.6);sh.lineTo(0,.25);sh.lineTo(-.5,.6);sh.closePath();
+  g.add(new THREE.Mesh(new THREE.ShapeGeometry(sh).rotateX(-Math.PI/2),new THREE.MeshBasicMaterial({color:0xe9e9e6,side:THREE.DoubleSide})));
+  const rp=[];for(let a=0;a<=64;a++){const t=a/64*Math.PI*2;rp.push(new THREE.Vector3(Math.cos(t)*1.5,0,Math.sin(t)*1.5));}
+  g.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(rp),new THREE.LineBasicMaterial({color:0x6a6a68})));
+  g.position.set(R0,.01,-R0);scene.add(g);return g;})();
+const clockOf=H=>{const h=12+H*12/Math.PI;return String(Math.floor(h)).padStart(2,'0')+':'+String(Math.floor((h%1)*60)).padStart(2,'0');};
+function updateSun(){
+  if(sunPreset==='orbit'){const e=(38+14*Math.sin(sunA*.5))*Math.PI/180;S.set(Math.cos(e)*Math.cos(sunA),Math.sin(e),Math.cos(e)*Math.sin(sunA));$('#sunTime').textContent='circling';}
+  else{const r=HS.solarDir(HS.DECL[sunPreset],tod);S.set(r.x,r.y,r.z);if(S.y<.03){S.y=.03;S.normalize();}$('#sunTime').textContent=PRESET_LABEL[sunPreset]+' '+clockOf(r.H);}
+  sunMark.position.copy(S).multiplyScalar(PATH_R);
+  sunL.position.copy(S).multiplyScalar(60);sunL.target.position.set(0,0,0);
+  fill.position.set(-S.x,.6,-S.z).multiplyScalar(40);
+}
+function computeShadows(){
+  if(!disp)return;const fh=disp.fh,sy=Math.max(.04,S.y),kx=fh*S.x/sy,kz=fh*S.z/sy;
+  for(let f=0;f<shownFloors;f++)for(let c=0;c<NN;c++){const i=f*NN+c;shadowF[i]=0;if(!disp.cells[i])continue;
+    const x=c%N,z=(c/N)|0;
+    for(let g=f+1;g<shownFloors;g++){const d=g-f,X=Math.floor(x+.5+kx*d),Z=Math.floor(z+.5+kz*d);if(X<0||Z<0||X>=N||Z>=N)break;if(disp.cells[g*NN+Z*N+X]){shadowF[i]=1;break;}}}
+}
+function stepPanels(){
+  if(!disp)return;
+  for(let f=0;f<shownFloors;f++)for(let c=0;c<NN;c++){const i=f*NN+c;if(!disp.cells[i])continue;
+    const x=c%N,z=(c/N)|0,pi=panelP[i];let hit=0,sum=0,cnt=0,push=0;
+    const nb=j=>{const p=panelP[j];sum+=p;cnt++;const d=pi-p,ad=Math.abs(d);if(ad<.3)push+=(ad>1e-4?Math.sign(d):tieSign[i])*(.3-ad);};
+    for(const [dx,dz] of DIRS){if(!solidD(f,x+dx,z+dz)){const d=dx*S.x+dz*S.z;if(d>hit)hit=d;}else nb(i+dx+dz*N);}
+    if(solidD(f+1,x,z))nb(i+NN);if(solidD(f-1,x,z))nb(i-NN);
+    const target=1-Math.min(1,hit*1.6)*(shadowF[i]?.12:1),avg=cnt?sum/cnt:pi,k=sensor[i]?.05:.003;
+    // sensing + alignment (match neighbours) + separation (don't sit at the same angle as neighbours)
+    panelV[i]=panelV[i]*.93+k*(target-pi)+finAlign*.15*(avg-pi)+finSep*.05*push;}
+  for(let f=0;f<shownFloors;f++)for(let c=0;c<NN;c++){const i=f*NN+c;if(!disp.cells[i])continue;panelP[i]+=panelV[i];
+    if(panelP[i]<0){panelP[i]=0;panelV[i]*=-.3}else if(panelP[i]>1){panelP[i]=1;panelV[i]*=-.3}}
+}
+
+/* ================= ghost overlay ================= */
+const ghostLine=new THREE.LineSegments(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0xffffff,transparent:true,opacity:.38,depthWrite:false}));
+ghostLine.frustumCulled=false;ghostLine.renderOrder=2;ghostLine.visible=false;scene.add(ghostLine);
+function contourGeo(entry){
+  if(entry._geo)return entry._geo;
+  const C=entry.res.cells,fh=entry.inp.params.ffh/entry.inp.params.bay,pts=[];
+  const has=(f,x,z)=>f>=0&&f<MAXF&&x>=0&&z>=0&&x<N&&z<N&&C[f*NN+z*N+x]===1;
+  for(let f=0;f<MAXF;f++)for(let c=0;c<NN;c++){if(!C[f*NN+c])continue;
+    const x=c%N,z=(c/N)|0,X=x-N/2,Z=z-N/2,ya=f*fh,yb=(f+1)*fh;
+    const e=[!has(f,x+1,z),!has(f,x-1,z),!has(f,x,z+1),!has(f,x,z-1)];
+    const seg=(a,b,c2,d)=>{pts.push(a,ya,b,c2,ya,d,a,yb,b,c2,yb,d);};
+    if(e[0])seg(X+1,Z,X+1,Z+1);if(e[1])seg(X,Z,X,Z+1);if(e[2])seg(X,Z+1,X+1,Z+1);if(e[3])seg(X,Z,X+1,Z);
+    const v=(a,b)=>pts.push(a,ya,b,a,yb,b);
+    if(e[0]&&e[2])v(X+1,Z+1);if(e[0]&&e[3])v(X+1,Z);if(e[1]&&e[2])v(X,Z+1);if(e[1]&&e[3])v(X,Z);}
+  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pts,3));entry._geo=g;return g;
+}
+function setGhost(entry){ghostEntry=entry;if(entry){ghostLine.geometry=contourGeo(entry);ghostLine.visible=towerOn;}else ghostLine.visible=false;renderHistory();}
+
+/* ================= zones: visuals ================= */
+const zoneLayer=new THREE.Group();scene.add(zoneLayer);
+const previewLayer=new THREE.Group();scene.add(previewLayer);
+const draftLayer=new THREE.Group();scene.add(draftLayer);
+let showZones=true;
+const zoneVis=new Map();
+let selZone=null;
+function lineMat(t,op){const d=TYPES[t].dash;return d?new THREE.LineDashedMaterial({color:0xececea,transparent:true,opacity:op,depthTest:false,dashSize:d[0],gapSize:d[1]})
+  :new THREE.LineBasicMaterial({color:0xececea,transparent:true,opacity:op,depthTest:false});}
+function outline(pts,t,op,y=.02){const v=pts.map(p=>new THREE.Vector3(p[0],y,p[1]));v.push(v[0].clone());
+  const l=new THREE.Line(new THREE.BufferGeometry().setFromPoints(v),lineMat(t,op));l.computeLineDistances();l.renderOrder=10;return l;}
+function fillMesh(pts,op){const sh=new THREE.Shape(pts.map(p=>new THREE.Vector2(p[0],-p[1])));
+  const m=new THREE.Mesh(new THREE.ShapeGeometry(sh).rotateX(-Math.PI/2),new THREE.MeshBasicMaterial({color:0xececea,transparent:true,opacity:op,depthWrite:false}));m.position.y=.008;return m;}
+const handleGeo=new THREE.PlaneGeometry(.36,.36).rotateX(-Math.PI/2);
+function rangeText(z){const a=z.lo===0?'ground':'floor '+z.lo,b=z.hi===0?'ground':'floor '+z.hi;
+  if(z.type===3)return z.lo===z.hi?`garden at ${z.lo===0?'grade':'level '+z.lo}`:`garden, levels ${z.lo} to ${z.hi}`;
+  if(z.type===2)return z.lo===z.hi?`open at ${a}`:`open, ${a} to ${b}`;
+  return z.lo===z.hi?a:`${a} to ${b}`;}
+function drawZone(z){
+  let v=zoneVis.get(z.id);
+  if(v){zoneLayer.remove(v.g);v.g.traverse(o=>{if(o.geometry&&o.geometry!==handleGeo)o.geometry.dispose();if(o.material)o.material.dispose();});}
+  else{const lab=document.createElement('span');$('#labels').appendChild(lab);v={lab};zoneVis.set(z.id,v);}
+  const on=z===selZone,g=new THREE.Group();
+  g.add(fillMesh(z.pts,on?.09:(z.type===3?.07:.035)));g.add(outline(z.pts,z.type,on?1:.6));
+  if(on)z.pts.forEach(p=>{const m=new THREE.Mesh(handleGeo,new THREE.MeshBasicMaterial({color:0xffffff,depthTest:false}));m.position.set(p[0],.03,p[1]);m.renderOrder=11;g.add(m);});
+  v.g=g;zoneLayer.add(g);
+  v.lab.innerHTML=`${esc(z.name)}<small>${rangeText(z)}</small>`;v.lab.classList.toggle('on',on);
+}
+function removeZoneVis(z){const v=zoneVis.get(z.id);if(!v)return;zoneLayer.remove(v.g);v.lab.remove();zoneVis.delete(z.id);}
+function redrawAllZones(){for(const [id,v] of zoneVis){zoneLayer.remove(v.g);v.lab.remove();}zoneVis.clear();zones.forEach(drawZone);}
+function centroid(pts){let x=0,z=0;pts.forEach(p=>{x+=p[0];z+=p[1];});return [x/pts.length,z/pts.length];}
+function drawPreviewZones(entry){
+  previewLayer.children.slice().forEach(o=>{previewLayer.remove(o);o.geometry.dispose();o.material.dispose();});
+  if(!entry)return;entry.inp.zones.forEach(z=>previewLayer.add(outline(z.pts,z.type,.5)));
+}
+
+/* ================= history entries ================= */
+function thumb(res,prm){
+  const W=192,H=136,cv=document.createElement('canvas');cv.width=W;cv.height=H;const g=cv.getContext('2d');
+  g.fillStyle='#050505';g.fillRect(0,0,W,H);
+  const s=4.1,fh=prm.ffh/prm.bay,cx=W/2,cy=H*.66;
+  const P=(x,z,y)=>[cx+(x-z)*s*.866,cy+(x+z-N)*s*.5-y*s];
+  g.strokeStyle='#2a2a2a';g.lineWidth=1;g.beginPath();[[0,0],[N,0],[N,N],[0,N]].forEach((p,i)=>{const q=P(p[0],p[1],0);i?g.lineTo(q[0],q[1]):g.moveTo(q[0],q[1]);});g.closePath();g.stroke();
+  const order=[];for(let c=0;c<NN;c++)order.push(c);order.sort((a,b)=>((a%N)+((a/N)|0))-((b%N)+((b/N)|0)));
+  g.lineWidth=.5;g.strokeStyle='rgba(0,0,0,.6)';
+  for(const c of order){const x=c%N,z=(c/N)|0;let f=0;
+    while(f<MAXF){while(f<MAXF&&!res.cells[f*NN+c])f++;if(f>=MAXF)break;const a=f;while(f<MAXF&&res.cells[f*NN+c])f++;const b=f;
+      const ya=a*fh,yb=b*fh;
+      const quad=(pts,col)=>{g.fillStyle=col;g.beginPath();pts.forEach((p,i)=>{const q=P(p[0],p[1],p[2]);i?g.lineTo(q[0],q[1]):g.moveTo(q[0],q[1]);});g.closePath();g.fill();g.stroke();};
+      quad([[x,z+1,ya],[x+1,z+1,ya],[x+1,z+1,yb],[x,z+1,yb]],'#9b9b98');
+      quad([[x+1,z,ya],[x+1,z+1,ya],[x+1,z+1,yb],[x+1,z,yb]],'#cfcfcc');
+      quad([[x,z,yb],[x+1,z,yb],[x+1,z+1,yb],[x,z+1,yb]],res.garden[c]&&!res.cells[b*NN+c]?'#3e3e3c':'#6a6a68');
+    }
+    if(res.garden[c]&&!res.cells[c]){let any=false;for(let f2=0;f2<MAXF;f2++)if(res.cells[f2*NN+c]){any=true;break;}
+      if(!any){g.fillStyle='#3a3a38';g.beginPath();[[x,z],[x+1,z],[x+1,z+1],[x,z+1]].forEach((p,i)=>{const q=P(p[0],p[1],0);i?g.lineTo(q[0],q[1]):g.moveTo(q[0],q[1]);});g.closePath();g.fill();}}
+  }
+  return cv.toDataURL('image/png');
+}
+function goalChange(a,b,k,name){const d=b-a;if(!d)return null;return (d>0?'Raised ':'Lowered ')+name.charAt(0).toLowerCase()+name.slice(1)+' goal';}
+function diffLabel(prev,inp){
+  if(!prev)return ['Initial design'];
+  const out=[];
+  const pz=new Map(prev.zones.map(z=>[z.id,z]));
+  for(const z of inp.zones){const o=pz.get(z.id);
+    if(!o){out.push('Added '+z.name.toLowerCase());continue;}
+    if(o.type!==z.type)out.push(`Changed ${o.name.toLowerCase()} to ${TYPES[z.type].name.toLowerCase()}`);
+    const oc=centroid(o.pts),nc=centroid(z.pts),oa=HS.polyArea(o.pts),na=HS.polyArea(z.pts);
+    if(Math.abs(oa-na)>1e-6||o.pts.length!==z.pts.length)out.push((na>oa?'Enlarged ':'Reduced ')+z.name.toLowerCase()+' zone');
+    else if(Math.hypot(oc[0]-nc[0],oc[1]-nc[1])>1e-6)out.push('Moved '+z.name.toLowerCase());
+    if(o.target!==z.target)out.push(`${z.name} target ${fmt(o.target)} → ${fmt(z.target)} m²`);
+    if(o.lo!==z.lo||o.hi!==z.hi)out.push(`${z.name} ${rangeText(z)}`);
+    if(o.prio!==z.prio)out.push(`${z.name} priority ${o.prio} → ${z.prio}`);}
+  const nz=new Set(inp.zones.map(z=>z.id));for(const o of prev.zones)if(!nz.has(o.id))out.push('Deleted '+o.name.toLowerCase());
+  for(const p of PRM)if(prev.params[p.k]!==inp.params[p.k])out.push(`${p.name} ${prev.params[p.k]} → ${inp.params[p.k]}${p.unit}`);
+  for(const g of GOALS){const t=goalChange(prev.goals[g.k],inp.goals[g.k],g.k,g.name);if(t)out.push(t);}
+  if(prev.sun!==inp.sun)out.push('Sun preset '+inp.sun);
+  if(prev.variation!==inp.variation)out.push('New variation '+inp.variation);
+  if((prev.mode||'solver')!==(inp.mode||'solver'))out.push(inp.mode==='flock'?'Switched to flock':'Switched to solver');
+  return out.length?out:['Rebuilt, no input changes'];
+}
+function makeEntry(inp,res,e,labelParts){
+  const lbl=labelParts.length>2?labelParts.slice(0,2).join(', ')+` and ${labelParts.length-2} more`:labelParts.join(', ');
+  return {n:++histN,label:lbl,inp,res,e:stripE(e),time:new Date(),thumb:thumb(res,inp.params),pinned:false};
+}
+function stripE(e){const {dist,litCol,...rest}=e;return rest;}
+function pushEntry(en){history.push(en);if(history.length>150){const o=history.find(x=>!x.pinned&&x!==curEntry);if(o)history.splice(history.indexOf(o),1);}}
+
+/* ================= solving ================= */
+let rebuildTimer=0,solving=null,stMode='idle';
+function requestRebuild(delay=220){clearTimeout(rebuildTimer);rebuildTimer=setTimeout(startSolve,delay);setStatus('pending');}
+function startSolve(){
+  if(previewEntry)exitPreview();
+  const inp=inputs(),ctx=HS.buildCtx(inp);
+  if(inp.mode==='flock'){
+    const h0=(solving&&solving.flock&&solving.h)?solving.h:live?live.h:HS.initial(ctx);
+    solving={flock:true,gen:HS.flock(ctx,h0,inp.variation),ctx,inp,tick:0,moving:0,h:h0};building=false;setStatus('flocking');return;}
+  solving={gen:HS.solve(ctx,inp.variation),ctx,inp,progress:0};setStatus('solving');
+}
+function finishFlock(){
+  const {ctx,inp,h}=solving;solving=null;
+  const e=HS.evaluate(ctx,h,true),res=HS.realize(ctx,h);
+  const en=makeEntry(inp,res,e,diffLabel(curEntry?curEntry.inp:null,inp));
+  pushEntry(en);goLive(en,ctx,e,false);
+}
+function pumpSolve(){
+  if(!solving)return;
+  if(solving.flock){
+    for(let k=0;k<(reduce?8:2);k++){const r=solving.gen.next();if(r.done){solving.h=r.value.h;finishFlock();return;}
+      solving.h=r.value.h;solving.tick=r.value.tick;solving.moving=r.value.changed;}
+    const res=HS.realize(solving.ctx,solving.h);setDisplay(res,solving.inp.params,false);
+    $('#stTxt').textContent=`Flocking, step ${solving.tick+1}, ${solving.moving} column${solving.moving===1?'':'s'} moving`;return;}
+  const t=performance.now();
+  while(performance.now()-t<14){const r=solving.gen.next();if(r.done){finishSolve(r.value);return;}solving.progress=r.value;}
+  $('#stProg i').style.width=pct(solving.progress);
+}
+function finishSolve(out){
+  const {ctx,inp}=solving;solving=null;
+  const res=HS.realize(ctx,out.h);
+  const en=makeEntry(inp,res,out.e,diffLabel(curEntry?curEntry.inp:null,inp));
+  pushEntry(en);goLive(en,ctx,out.e,true);
+}
+function goLive(en,ctx,e,animate){
+  curEntry=en;live={entry:en,ctx,h:Int16Array.from(en.res.h),e};
+  setDisplay(en.res,en.inp.params,animate);renderGoals();renderHistory();syncZoneCard();tipCache.clear();
+  if(!animate)setStatus('idle');else setStatus('building');
+}
+function restore(en){
+  params={...en.inp.params};goals={...en.inp.goals};variation=en.inp.variation;sunPreset=en.inp.sun;genMode=en.inp.mode||'solver';syncModeUI();
+  zones=en.inp.zones.map(z=>({...z,pts:z.pts.map(p=>[...p])}));
+  nextZoneId=Math.max(nextZoneId,...zones.map(z=>z.id+1),1);
+  selZone=null;previewEntry=null;drawPreviewZones(null);zoneLayer.visible=showZones;
+  redrawAllZones();renderParams();renderGoalInputs();syncPresetUI();buildSiteGrid();
+  const ctx=HS.buildCtx(inputs()),e=HS.evaluate(ctx,en.res.h,true);
+  const ne={...en,n:++histN,label:'Restored #'+en.n,inp:inputs(),e:stripE(e),time:new Date(),pinned:false,_geo:null};
+  pushEntry(ne);goLive(ne,ctx,e,false);
+}
+function preview(en){
+  if(en===curEntry){exitPreview();return;}
+  previewEntry=en;selectZone(null);setDisplay(en.res,en.inp.params,false);
+  zoneLayer.visible=false;$('#labels').style.display='none';drawPreviewZones(en);setStatus('preview');renderHistory();renderGoals();
+}
+function exitPreview(){
+  if(!previewEntry)return;previewEntry=null;drawPreviewZones(null);
+  zoneLayer.visible=showZones;$('#labels').style.display=showZones?'':'none';
+  if(curEntry)setDisplay(curEntry.res,curEntry.inp.params,false);
+  setStatus(solving?'solving':'idle');renderHistory();renderGoals();
+}
+
+/* ================= status / hint ================= */
+function setStatus(m){
+  stMode=m;const t=$('#stTxt'),b=$('#stBtns'),pr=$('#stProg');b.innerHTML='';pr.hidden=true;
+  if(m==='pending')t.textContent='Inputs changed';
+  else if(m==='solving'){t.textContent='Testing variations against your goals';pr.hidden=false;}
+  else if(m==='building')t.textContent='Building';
+  else if(m==='flocking'){t.textContent='Flocking';const x=document.createElement('button');x.textContent='Settle now';x.className='pill';x.onclick=()=>{if(solving&&solving.flock)finishFlock();};b.append(x);}
+  else if(m==='preview'&&previewEntry){t.textContent=`Previewing #${previewEntry.n}, ${previewEntry.label}`;
+    const r=document.createElement('button');r.textContent='Restore';r.className='pill';r.onclick=()=>restore(previewEntry);
+    const x=document.createElement('button');x.textContent='Back to current';x.className='pill';x.onclick=exitPreview;b.append(r,x);}
+  else if(live){t.textContent=`Holding, score ${Math.round(live.e.total*100)}`+(live.e.valid?'':'. Some limits conflict, closest result shown');}
+}
+function updateHint(){
+  const H={orbit:'Drag to orbit, right-drag to pan, scroll to zoom. Hover the tower to see why each part exists.',
+    select:'Click a zone to edit it, drag to move, drag its corner squares to reshape. Delete removes it.',
+    rect:`Drag on the site to draw a ${TYPES[curType].name.toLowerCase()} rectangle.`,
+    poly:`Click to add ${TYPES[curType].name.toLowerCase()} points. Click the first point, double-click or press Enter to close. Esc cancels.`};
+  $('#hint').textContent=H[tool];
+}
+
+/* ================= goals and parameters UI ================= */
+const RULE_OF={};HS.RULES.forEach(r=>RULE_OF[r.goal]=r.name);RULE_OF.fit='Growth';
+function syncModeUI(){
+  document.querySelectorAll('#modeSeg button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.m===genMode));
+  $('#modeNote').textContent=genMode==='flock'
+    ?'Each column is an agent. It reads only its neighbours and the sun, and moves its height a little each step until the flock settles. Weights scale each rule.'
+    :'Tests thousands of whole-tower variations and keeps the one with the best weighted score.';
+  document.querySelectorAll('[data-rule]').forEach(el=>{el.hidden=genMode!=='flock';});
+}
+function renderGoalInputs(){
+  const box=$('#goalRows');box.innerHTML='';
+  GOALS.forEach(g=>{const d=document.createElement('div');d.className='goal';
+    d.innerHTML=`<div class="gh"><span>${g.name} <span class="muted" data-rule hidden>${RULE_OF[g.k]?'drives '+RULE_OF[g.k].toLowerCase():''}</span></span><output data-s="${g.k}">–</output></div><div class="bar"><i data-b="${g.k}"></i></div>
+      <label class="w"><span>Weight</span><input type="range" min="0" max="100" value="${goals[g.k]}" data-g="${g.k}" aria-label="${g.name} weight"><span data-wv="${g.k}">${goals[g.k]}</span></label>`;
+    box.appendChild(d);});
+  box.querySelectorAll('input[data-g]').forEach(i=>{
+    i.oninput=()=>{box.querySelector(`[data-wv="${i.dataset.g}"]`).textContent=i.value;};
+    i.onchange=()=>{goals[i.dataset.g]=+i.value;requestRebuild(60);};});
+  syncModeUI();
+}
+function renderGoals(){
+  const en=previewEntry||curEntry;if(!en)return;const e=en.e;
+  GOALS.forEach(g=>{const o=document.querySelector(`[data-s="${g.k}"]`),b=document.querySelector(`[data-b="${g.k}"]`);if(o)o.textContent=pct(e.s[g.k]);if(b)b.style.width=pct(e.s[g.k]);});
+  $('#totScore').textContent=Math.round(e.total*100);
+  const P=en.inp.params,site=(N*P.bay)**2,rows=[
+    ['Total floor area',fmt(e.GFA)+' m²'],['FAR',`${e.far.toFixed(2)} of ${P.far}`],['Site coverage',`${pct(e.coverage)} of ${P.coverage}%`],
+    ['Sunlit roof area',fmt(e.sunArea)+' m²'],['Tallest point',`${e.maxh} floors`]];
+  en.inp.zones.forEach((z,i)=>{const a=e.zoneArea[i]||0;
+    if(z.type<2)rows.push([z.name,z.target?`${fmt(a)} of ${fmt(z.target)} m²`:fmt(a)+' m²']);
+    else rows.push([z.name,fmt(HS.polyArea(z.pts)*P.bay*P.bay)+' m² open']);});
+  $('#kv').innerHTML=rows.map(r=>`<span>${esc(r[0])}</span><span>${r[1]}</span>`).join('');
+  $('#siteInfo').textContent=`${SITE_M} × ${SITE_M} m site, ${params.bay} m grid`;
+}
+function renderParams(){
+  const box=$('#prmRows');box.innerHTML='';
+  PRM.forEach(p=>{const d=document.createElement('div');d.className='prm';
+    d.innerHTML=`<label for="p_${p.k}">${p.name}</label><output>${params[p.k]}${p.unit}</output><input id="p_${p.k}" type="range" min="${p.min}" max="${p.max}" step="${p.step}" value="${params[p.k]}">`;
+    const i=d.querySelector('input'),o=d.querySelector('output');
+    i.oninput=()=>{o.textContent=i.value+p.unit;};
+    i.onchange=()=>{params[p.k]=+i.value;if(p.k==='maxFloors')zones.forEach(z=>{z.hi=Math.min(z.hi,params.maxFloors-1);z.lo=Math.min(z.lo,z.hi);drawZone(z);});
+      buildSiteGrid();renderGoals();syncZoneCard();requestRebuild(60);};
+    box.appendChild(d);});
+  $('#siteInfo').textContent=`${SITE_M} × ${SITE_M} m site, ${params.bay} m grid`;
+}
+
+/* ================= history UI ================= */
+function settingsRows(en){
+  const r=[],P=en.inp.params,A=P.bay*P.bay;
+  en.inp.zones.forEach((z,i)=>{const k='z'+z.id,shape=z.kind==='rect'?(()=>{const xs=z.pts.map(p=>p[0]),zs=z.pts.map(p=>p[1]);return `Rectangle ${fmt((Math.max(...xs)-Math.min(...xs))*P.bay)} × ${fmt((Math.max(...zs)-Math.min(...zs))*P.bay)} m`;})():`Polygon, ${z.pts.length} points`;
+    r.push({sec:'Zones',key:k+'t',label:`${z.name}, program`,val:TYPES[z.type].name});
+    r.push({sec:'Zones',key:k+'s',label:`${z.name}, shape`,val:shape});
+    r.push({sec:'Zones',key:k+'a',label:`${z.name}, zone area`,val:fmt(HS.polyArea(z.pts)*A)+' m²'});
+    r.push({sec:'Zones',key:k+'c',label:`${z.name}, position`,val:centroid(z.pts).map(v=>fmt(v*P.bay)).join(', ')+' m'});
+    if(z.type<2)r.push({sec:'Zones',key:k+'g',label:`${z.name}, target area`,val:fmt(z.target)+' m²'});
+    r.push({sec:'Zones',key:k+'r',label:`${z.name}, ${z.type===3?'garden level':z.type===2?'open floors':'floors'}`,val:`${z.lo} to ${z.hi}`});
+    r.push({sec:'Zones',key:k+'p',label:`${z.name}, priority`,val:String(z.prio)});});
+  if(!en.inp.zones.length)r.push({sec:'Zones',key:'none',label:'No zones',val:''});
+  PRM.forEach(p=>r.push({sec:'Building parameters',key:'p'+p.k,label:p.name,val:P[p.k]+p.unit}));
+  GOALS.forEach(g=>r.push({sec:'Goal weights',key:'g'+g.k,label:g.name,val:`weight ${en.inp.goals[g.k]}, score ${pct(en.e.s[g.k])}`}));
+  const e=en.e;
+  r.push({sec:'Results',key:'rt',label:'Overall score',val:String(Math.round(e.total*100))});
+  r.push({sec:'Results',key:'rg',label:'Total floor area',val:fmt(e.GFA)+' m²'});
+  r.push({sec:'Results',key:'rf',label:'Achieved FAR',val:e.far.toFixed(2)});
+  r.push({sec:'Results',key:'rc',label:'Site coverage',val:pct(e.coverage)});
+  r.push({sec:'Results',key:'rs',label:'Sunlit roof area',val:fmt(e.sunArea)+' m²'});
+  en.inp.zones.forEach((z,i)=>{if(z.type<2)r.push({sec:'Results',key:'ra'+z.id,label:`${z.name} achieved`,val:`${fmt(e.zoneArea[i]||0)} of ${fmt(z.target)} m²`});});
+  r.push({sec:'Context',key:'csite',label:'Site',val:`${SITE_M} × ${SITE_M} m (${fmt(SITE_M*SITE_M)} m²), ${P.bay} m grid`});
+  r.push({sec:'Context',key:'cs',label:'Sun path preset',val:en.inp.sun==='orbit'?'Orbit (scored at equinox)':{winter:'Winter solstice',equinox:'Equinox',summer:'Summer solstice'}[en.inp.sun]});
+  r.push({sec:'Context',key:'cm',label:'Generation',val:en.inp.mode==='flock'?'Flock (local rules)':'Solver (search)'});
+  r.push({sec:'Context',key:'cv',label:'Variation',val:String(en.inp.variation)});
+  r.push({sec:'Context',key:'ct',label:'Created',val:en.time.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'})});
+  return r;
+}
+function settingsHTML(en){
+  const i=history.indexOf(en),prev=i>0?history[i-1]:null,pm=prev?new Map(settingsRows(prev).map(x=>[x.key,x.val])):null;
+  let sec='',h='';
+  for(const x of settingsRows(en)){if(x.sec!==sec){sec=x.sec;h+=`<h4>${sec}</h4>`;}
+    const ch=pm&&x.key!=='ct'&&pm.get(x.key)!==x.val;h+=`<div class="srow${ch?' ch':''}"><span>${esc(x.label)}</span><span>${esc(x.val)}</span></div>`;}
+  return h;
+}
+function renderHistory(){
+  const list=$('#hList');const keep=list.scrollTop;
+  const items=history.slice().reverse().filter(e=>histFilter==='all'||e.pinned);
+  $('#hCount').textContent=`${history.length} iteration${history.length===1?'':'s'}`;
+  list.innerHTML=items.length?'':`<p class="muted">${histFilter==='pinned'?'Pin iterations with the star to keep them here.':'Iterations appear here after each rebuild.'}</p>`;
+  for(const en of items){
+    const d=document.createElement('div');d.className='entry'+(en===curEntry?' cur':'')+(en===previewEntry?' prev':'');
+    const isCmp=compareSel.includes(en),open=openSettings.has(en.n);
+    d.innerHTML=`<div class="eh"><img alt="Iteration ${en.n} thumbnail" src="${en.thumb}"><div>
+        <div class="et"><span>#${en.n}${en===curEntry?' (current)':''}</span><button class="star" aria-pressed="${en.pinned}" aria-label="Pin iteration ${en.n}">${en.pinned?'★':'☆'}</button></div>
+        <div style="font-size:12px;margin-top:2px">${esc(en.label)}</div>
+        <div class="em">${fmt(en.e.GFA)} m², FAR ${en.e.far.toFixed(2)}, score ${Math.round(en.e.total*100)}</div></div></div>
+      <div class="eb"><button data-a="prev" aria-pressed="${en===previewEntry}">${en===previewEntry?'Previewing':'Preview'}</button>
+        <button data-a="rest" ${en===curEntry?'disabled':''}>Restore</button>
+        <button data-a="ghost" aria-pressed="${en===ghostEntry}">Ghost</button>
+        <button data-a="cmp" aria-pressed="${isCmp}">Compare</button>
+        <button data-a="set" aria-pressed="${open}" aria-expanded="${open}">Settings</button></div>
+      ${open?`<div class="settings">${settingsHTML(en)}</div>`:''}`;
+    d.querySelector('.eh').onclick=ev=>{if(ev.target.closest('.star'))return;preview(en);};
+    d.querySelector('.star').onclick=()=>{en.pinned=!en.pinned;renderHistory();};
+    d.querySelectorAll('.eb button').forEach(b=>b.onclick=()=>{const a=b.dataset.a;
+      if(a==='prev')preview(en);else if(a==='rest')restore(en);else if(a==='ghost')setGhost(ghostEntry===en?null:en);
+      else if(a==='cmp'){const i=compareSel.indexOf(en);if(i>=0)compareSel.splice(i,1);else{compareSel.push(en);if(compareSel.length>2)compareSel.shift();}renderHistory();}
+      else if(a==='set'){open?openSettings.delete(en.n):openSettings.add(en.n);renderHistory();}});
+    list.appendChild(d);
+  }
+  list.scrollTop=keep;
+  const c=$('#hCompare');c.textContent=`Compare ${compareSel.length} of 2`;c.disabled=compareSel.length<2;
+}
+$('#hAll').onclick=()=>{histFilter='all';$('#hAll').setAttribute('aria-pressed',true);$('#hPinned').setAttribute('aria-pressed',false);renderHistory();};
+$('#hPinned').onclick=()=>{histFilter='pinned';$('#hAll').setAttribute('aria-pressed',false);$('#hPinned').setAttribute('aria-pressed',true);renderHistory();};
+$('#hCompare').onclick=openCompare;
+function openCompare(){
+  if(compareSel.length<2)return;const [a,b]=compareSel.slice().sort((x,y)=>x.n-y.n),ra=settingsRows(a),rb=settingsRows(b);
+  const ma=new Map(ra.map(x=>[x.key,x])),mb=new Map(rb.map(x=>[x.key,x]));
+  const keys=[];[...ra,...rb].forEach(x=>{if(!keys.find(k=>k.key===x.key))keys.push(x);});
+  const secs=['Zones','Building parameters','Goal weights','Results','Context'];
+  let h=`<h2 style="font-size:14px;font-weight:600;margin:0 0 12px;display:flex;justify-content:space-between">Compare iterations<button class="pill" id="cmpClose">Close</button></h2>
+    <div class="cmpHead"><span class="muted">Highlighted rows differ</span>
+    <div><img alt="" src="${a.thumb}"><div style="margin-top:4px">#${a.n} ${esc(a.label)}</div></div>
+    <div><img alt="" src="${b.thumb}"><div style="margin-top:4px">#${b.n} ${esc(b.label)}</div></div></div>`;
+  for(const s of secs){const rows=keys.filter(k=>k.sec===s);if(!rows.length)continue;h+=`<div class="cmpSec">${s}</div>`;
+    for(const k of rows){const va=ma.get(k.key)?.val??'–',vb=mb.get(k.key)?.val??'–';
+      h+=`<div class="cmpRow${va!==vb?' ch':''}"><span>${esc(k.label)}</span><span>${esc(va)}</span><span>${esc(vb)}</span></div>`;}}
+  const p=$('#pCompare');p.innerHTML=h;p.hidden=false;$('#cmpClose').onclick=()=>{p.hidden=true;};
+}
+
+/* ================= zone card ================= */
+$('#zType').innerHTML=TYPES.map((t,i)=>`<button data-zt="${i}" title="${t.name}">${t.name.split(' ')[0]}</button>`).join('');
+function syncZoneCard(){
+  const c=$('#zoneCard'),z=selZone;
+  if(!z||previewEntry){c.classList.remove('on');return;}
+  c.classList.add('on');
+  $('#zName').innerHTML=swatch(z.type)+esc(z.name);
+  c.querySelectorAll('[data-zt]').forEach(b=>b.setAttribute('aria-pressed',+b.dataset.zt===z.type));
+  const A=params.bay*params.bay,area=HS.polyArea(z.pts)*A;
+  if(z.kind==='rect'){const xs=z.pts.map(p=>p[0]),zs=z.pts.map(p=>p[1]);$('#zShape').textContent=`Rectangle ${fmt((Math.max(...xs)-Math.min(...xs))*params.bay)} × ${fmt((Math.max(...zs)-Math.min(...zs))*params.bay)} m, ${fmt(area)} m²`;}
+  else $('#zShape').textContent=`Polygon, ${z.pts.length} points, ${fmt(area)} m²`;
+  $('#zTargetRow').style.display=z.type<2?'':'none';
+  $('#zTarget').value=z.target;
+  $('#zRangeLbl').textContent=z.type===3?'Garden level':z.type===2?'Open floors':'Floors';
+  ['#zLo','#zHi'].forEach(s=>{$(s).max=params.maxFloors-1;});
+  $('#zLo').value=z.lo;$('#zHi').value=z.hi;$('#zPrio').value=z.prio;
+  let note='0 is the ground floor. Higher priority wins where zones overlap.';
+  if(live&&curEntry){const i=curEntry.inp.zones.findIndex(q=>q.id===z.id);if(i>=0){const a=curEntry.e.zoneArea[i]||0;
+    if(z.type<2)note=`Achieved ${fmt(a)} of ${fmt(z.target)} m² in the current design. `+note;}}
+  if(z.type===3)note='The building under this zone stops at the garden level, so the garden sits on its roof. '+note;
+  if(z.type===2)note='These floors stay open as public space. Building can bridge above them. '+note;
+  $('#zNote').textContent=note;
+}
+function placeZoneCard(){
+  const z=selZone;if(!z||previewEntry)return;const c=$('#zoneCard');
+  let mx=-1e9,my=1e9,Mx=-1e9;
+  z.pts.forEach(p=>{const [x,y]=toScreen(new THREE.Vector3(p[0],0,p[1]));mx=Math.max(mx,x);my=Math.min(my,y);});
+  const w=c.offsetWidth,h=c.offsetHeight;let L=mx+16,T=my-10;
+  if(L+w>innerWidth-10){let mn=1e9;z.pts.forEach(p=>{mn=Math.min(mn,toScreen(new THREE.Vector3(p[0],0,p[1]))[0]);});L=mn-w-16;}
+  L=Math.max(10,Math.min(innerWidth-w-10,L));T=Math.max(60,Math.min(innerHeight-h-80,T));
+  c.style.left=L+'px';c.style.top=T+'px';
+}
+function zoneEdited(){if(selZone)drawZone(selZone);syncZoneCard();requestRebuild();}
+$('#zType').onclick=e=>{const b=e.target.closest('[data-zt]');if(!b||!selZone)return;const t=+b.dataset.zt;if(t===selZone.type)return;
+  const z=selZone,old=TYPES[z.type].name;z.type=t;z.name=z.name.replace(old,TYPES[t].name);
+  if(t<2&&!z.target)z.target=ZDEF[t].target;
+  if(t>=2){z.lo=ZDEF[t].lo;z.hi=ZDEF[t].hi;}
+  zoneEdited();};
+$('#zTarget').onchange=e=>{if(!selZone)return;selZone.target=Math.max(0,Math.round(+e.target.value||0));zoneEdited();};
+$('#zLo').onchange=e=>{if(!selZone)return;const v=Math.max(0,Math.min(params.maxFloors-1,Math.round(+e.target.value||0)));selZone.lo=v;if(selZone.hi<v)selZone.hi=v;zoneEdited();};
+$('#zHi').onchange=e=>{if(!selZone)return;const v=Math.max(0,Math.min(params.maxFloors-1,Math.round(+e.target.value||0)));selZone.hi=v;if(selZone.lo>v)selZone.lo=v;zoneEdited();};
+$('#zPrio').onchange=e=>{if(!selZone)return;selZone.prio=Math.max(1,Math.min(9,Math.round(+e.target.value||1)));zoneEdited();};
+$('#zDel').onclick=deleteZone;
+function deleteZone(){if(!selZone)return;removeZoneVis(selZone);zones=zones.filter(z=>z!==selZone);selZone=null;syncZoneCard();requestRebuild();}
+function selectZone(z){const p=selZone;selZone=z;if(p&&zones.includes(p))drawZone(p);if(z)drawZone(z);syncZoneCard();}
+
+/* ================= tools and pointer ================= */
+let tool='orbit',curType=0;
+const chips=$('#chips');
+TYPES.forEach((t,i)=>{const b=document.createElement('button');b.className='chip';b.dataset.ct=i;b.innerHTML=swatch(i)+`<span>${t.name}</span>`;b.title=`New zones are ${t.name.toLowerCase()} (key ${i+1})`;
+  b.onclick=()=>{setType(i);if(tool==='orbit'||tool==='select')setTool('rect');};chips.appendChild(b);});
+function setType(i){curType=i;chips.querySelectorAll('.chip').forEach(b=>b.setAttribute('aria-pressed',+b.dataset.ct===i));updateHint();}
+function setTool(t){
+  if(draft&&t!=='poly')cancelDraft();
+  tool=t;document.querySelectorAll('#dock [data-t]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.t===t));
+  controls.enableRotate=t==='orbit';canvas.classList.toggle('draw',t==='rect'||t==='poly');canvas.classList.remove('grab','vertex');
+  hideTip();updateHint();
+}
+document.querySelectorAll('#dock [data-t]').forEach(b=>b.onclick=()=>setTool(b.dataset.t));
+$('#variation').onclick=()=>{variation++;requestRebuild(0);};
+$('#bSpd').oninput=e=>{buildSpeed=+e.target.value;};
+
+const ray=new THREE.Raycaster(),ndc=new THREE.Vector2(),gPlane=new THREE.Plane(new THREE.Vector3(0,1,0),0);
+function setNDC(e){const r=canvas.getBoundingClientRect();ndc.set((e.clientX-r.left)/r.width*2-1,-((e.clientY-r.top)/r.height)*2+1);ray.setFromCamera(ndc,camera);}
+function groundAt(e){setNDC(e);const p=new THREE.Vector3();return ray.ray.intersectPlane(gPlane,p)?p:null;}
+function toScreen(v){const p=v.clone().project(camera),r=canvas.getBoundingClientRect();return [(p.x+1)/2*r.width+r.left,(1-p.y)/2*r.height+r.top];}
+const LIM=N/2+2,snap=v=>Math.max(-LIM,Math.min(LIM,Math.round(v*2)/2));
+function rectPts(a,b){const x0=Math.min(a[0],b[0]),x1=Math.max(a[0],b[0]),z0=Math.min(a[1],b[1]),z1=Math.max(a[1],b[1]);return [[x0,z0],[x1,z0],[x1,z1],[x0,z1]];}
+function newZone(kind,pts){
+  const t=curType,d=ZDEF[t],z={id:nextZoneId++,type:t,name:`${TYPES[t].name} ${String.fromCharCode(65+(letter++%26))}`,kind,pts,target:d.target,lo:d.lo,hi:Math.min(d.hi,params.maxFloors-1),prio:d.prio};
+  zones.push(z);drawZone(z);selectZone(z);requestRebuild();
+}
+let drag=null,draft=null,touches=0;
+canvas.addEventListener('touchstart',e=>{touches=e.touches.length;if(touches>1){drag=null;}},{passive:true});
+canvas.addEventListener('touchend',e=>{touches=e.touches.length;},{passive:true});
+function draftDraw(cursor){
+  draftLayer.children.slice().forEach(o=>{draftLayer.remove(o);o.geometry.dispose();if(o.material)o.material.dispose();});
+  if(!draft)return;
+  if(draft.kind==='rect'){draftLayer.add(outline(rectPts(draft.a,draft.b),curType,1,.03));return;}
+  const pts=draft.pts.slice();if(cursor)pts.push(cursor);
+  if(pts.length>=2){const v=pts.map(p=>new THREE.Vector3(p[0],.03,p[1]));const l=new THREE.Line(new THREE.BufferGeometry().setFromPoints(v),lineMat(curType,1));l.computeLineDistances();l.renderOrder=12;draftLayer.add(l);}
+  draft.pts.forEach((p,i)=>{const m=new THREE.Mesh(handleGeo.clone(),new THREE.MeshBasicMaterial({color:0xffffff,depthTest:false}));m.scale.setScalar(i===0?1.3:.8);m.position.set(p[0],.03,p[1]);m.renderOrder=12;draftLayer.add(m);});
+}
+function cancelDraft(){draft=null;draftDraw();}
+function closePoly(){if(draft&&draft.kind==='poly'&&draft.pts.length>=3){const pts=draft.pts;draft=null;draftDraw();newZone('poly',pts);}else cancelDraft();}
+canvas.addEventListener('pointerdown',e=>{
+  if(e.button!==0||(e.pointerType==='touch'&&touches>1))return;
+  if(tool==='orbit')return;
+  if(previewEntry)exitPreview();
+  const g=groundAt(e);if(!g)return;const p=[snap(g.x),snap(g.z)];
+  if(tool==='rect'){draft={kind:'rect',a:p,b:p};canvas.setPointerCapture(e.pointerId);draftDraw();return;}
+  if(tool==='poly'){
+    if(!draft)draft={kind:'poly',pts:[]};
+    if(draft.pts.length>=3){const [fx,fy]=toScreen(new THREE.Vector3(draft.pts[0][0],0,draft.pts[0][1]));if(Math.hypot(fx-e.clientX,fy-e.clientY)<13){closePoly();return;}}
+    const l=draft.pts[draft.pts.length-1];if(!l||l[0]!==p[0]||l[1]!==p[1])draft.pts.push(p);draftDraw(p);return;}
+  if(tool==='select'){
+    if(selZone){for(let i=0;i<selZone.pts.length;i++){const q=selZone.pts[i],[sx,sy]=toScreen(new THREE.Vector3(q[0],0,q[1]));
+      if(Math.hypot(sx-e.clientX,sy-e.clientY)<12){drag={kind:'vertex',z:selZone,i,moved:false};canvas.setPointerCapture(e.pointerId);canvas.classList.add('dragging');return;}}}
+    let hit=null;const ordered=zones.slice().sort((a,b)=>(b.prio-a.prio)||(b.id-a.id));
+    for(const z of ordered)if(HS.pip(g.x,g.z,z.pts)){hit=z;break;}
+    if(selZone&&HS.pip(g.x,g.z,selZone.pts))hit=selZone;
+    selectZone(hit);
+    if(hit){drag={kind:'move',z:hit,start:p,orig:hit.pts.map(q=>[...q]),moved:false};canvas.setPointerCapture(e.pointerId);canvas.classList.add('dragging');}
+  }
+});
+canvas.addEventListener('pointermove',e=>{
+  if(drag||draft){const g=groundAt(e);if(!g)return;const p=[snap(g.x),snap(g.z)];
+    if(draft&&draft.kind==='rect'&&e.buttons){draft.b=p;draftDraw();return;}
+    if(draft&&draft.kind==='poly'){draftDraw(p);return;}
+    if(drag&&drag.kind==='move'){const dx=p[0]-drag.start[0],dz=p[1]-drag.start[1];drag.z.pts=drag.orig.map(q=>[q[0]+dx,q[1]+dz]);drag.moved=dx!==0||dz!==0;drawZone(drag.z);syncZoneCard();return;}
+    if(drag&&drag.kind==='vertex'){const z=drag.z;
+      if(z.kind==='rect'){const opp=z.pts[(drag.i+2)%4];if(p[0]===opp[0]||p[1]===opp[1])return;z.pts=rectPts(opp,p);let bi=0,bd=1e9;z.pts.forEach((q,i)=>{const d=Math.hypot(q[0]-p[0],q[1]-p[1]);if(d<bd){bd=d;bi=i;}});drag.i=bi;}
+      else z.pts[drag.i]=p;
+      drag.moved=true;drawZone(z);syncZoneCard();return;}
+    return;
+  }
+  if(tool==='select'){let over=false;
+    if(selZone)for(const q of selZone.pts){const [sx,sy]=toScreen(new THREE.Vector3(q[0],0,q[1]));if(Math.hypot(sx-e.clientX,sy-e.clientY)<12){over=true;break;}}
+    canvas.classList.toggle('vertex',over);
+    if(!over){const g=groundAt(e);canvas.classList.toggle('grab',!!(g&&zones.some(z=>HS.pip(g.x,g.z,z.pts))));}}
+  if((tool==='orbit'||tool==='select')&&e.buttons===0)hover(e);else hideTip();
+});
+canvas.addEventListener('pointerup',()=>{
+  if(draft&&draft.kind==='rect'){const pts=rectPts(draft.a,draft.b);draft=null;draftDraw();
+    if(pts[1][0]-pts[0][0]>=.5&&pts[2][1]-pts[1][1]>=.5)newZone('rect',pts);return;}
+  if(drag){const m=drag.moved;drag=null;canvas.classList.remove('dragging');if(m)requestRebuild();}
+});
+canvas.addEventListener('dblclick',()=>{if(tool==='poly'&&draft){if(draft.pts.length>3)draft.pts.pop();closePoly();}});
+canvas.addEventListener('pointerleave',hideTip);
+
+addEventListener('keydown',e=>{
+  if(e.target.closest('input,textarea,select'))return;
+  const k=e.key.toLowerCase();
+  if(k==='escape'){if(!$('#start').hidden){closeStart();return;}if(draft)cancelDraft();else if(!$('#pCompare').hidden)$('#pCompare').hidden=true;else if(previewEntry)exitPreview();else selectZone(null);return;}
+  if(k==='enter'&&draft){closePoly();return;}
+  if((k==='delete'||k==='backspace')){if(draft&&draft.kind==='poly'){e.preventDefault();draft.pts.pop();draftDraw();}else if(selZone){e.preventDefault();deleteZone();}return;}
+  if(k==='o')setTool('orbit');else if(k==='s')setTool('select');else if(k==='r')setTool('rect');else if(k==='p')setTool('poly');
+  else if(k==='n'){variation++;requestRebuild(0);}
+  else if(k==='h')togglePanel('pHist');
+  else if(k==='t')setTower(!towerOn);
+  else if(k==='e'){const btn=document.querySelector('[data-l=sensors]');if(btn)btn.click();}
+  else if(e.key==='?')openStart();
+  else if(['1','2','3','4'].includes(k))setType(+k-1);
+});
+
+/* ================= explanations ================= */
+const tipCache=new Map();
+function hideTip(){$('#tip').classList.remove('on');}
+function goalDelta(base,e){let tw=0;GOALS.forEach((g,i)=>tw+=live.ctx.W[i]);if(!tw)return null;
+  let worst=null,wv=0,best=null,bv=0;GOALS.forEach((g,i)=>{const d=live.ctx.W[i]*(e.s[g.k]-base.s[g.k])/tw;if(d<wv){wv=d;worst=g;}if(d>bv){bv=d;best=g;}});
+  return {total:(e.total-base.total)*100,worst,best};}
+function explainForces(c,title,lines){
+  const F=live.ctx.forces,b=c*5,parts=HS.RULES.map((r,i)=>({r,v:F?F[b+i]:0}));
+  const desc={coh:v=>v>0?'pulled up to match neighbours':'pulled down to match neighbours',sep:()=>'pushed down: top floor is deep plan',
+    sun:()=>'stepping down to keep the shadow-side roof lit',grow:v=>v>0?'zones or FAR budget want more area':'zone is over its target',open:()=>'keeping ground open'};
+  parts.filter(p=>Math.abs(p.v)>.005).forEach(p=>lines.push(`${p.r.name} ${p.v>0?'+':''}${p.v.toFixed(2)}, ${desc[p.r.k](p.v)}`));
+  const main=parts.slice().sort((a,b)=>Math.abs(b.v)-Math.abs(a.v))[0];
+  const net=parts.reduce((s,p)=>s+p.v,0);
+  const why=!main||Math.abs(main.v)<.01?'Settled: the rules on this column are in balance.':`Strongest rule: ${main.r.name.toLowerCase()}. Net push ${net>0?'+':''}${net.toFixed(2)} floors per step${Math.abs(net)<.1?', so it holds here.':'.'}`;
+  return {title,lines,why};
+}
+function explainColumn(c){
+  if(live.entry.inp.mode==='flock'){const ctx=live.ctx;if(!ctx.buildable[c])return {title:'Open ground',lines:[],why:`Inside the ${ctx.P.setback} m setback.`};
+    const tz=ctx.topZone[c];return explainForces(c,live.h[c]?'Column':'Open ground',[tz>=0?`Zone: ${ctx.zs[tz].name}`:'No zone',`Column height: ${live.h[c]} floors`]);}
+  const ctx=live.ctx,h=live.h,z=ctx.topZone[c],P=ctx.P,lines=[];let why='';
+  const zn=z>=0?ctx.zs[z]:null;
+  lines.push(zn?`Zone: ${zn.name}`:'No zone: unassigned floor area if built');
+  lines.push(`Column height: ${h[c]} floor${h[c]===1?'':'s'}`);
+  if(!ctx.buildable[c])why=`Open: inside the ${P.setback} m setback.`;
+  else if(zn&&zn.type===3&&h[c]>=ctx.maxH[c])why=`Held at level ${h[c]} so the ${zn.name.toLowerCase()} garden sits on top.`;
+  else if(h[c]>=ctx.maxH[c])why=`At the height limit of ${P.maxFloors} floors.`;
+  else{const nh=h.slice();nh[c]++;const e=HS.evaluate(ctx,nh);
+    if(!e.valid){why=e.GFA>ctx.farMax?`Not built higher: one more floor would exceed the FAR limit of ${P.far}.`:`Not built here: it would push site coverage past ${P.coverage}%.`;}
+    else{const d=goalDelta(live.e,e);
+      if(d.total<0)why=`${h[c]?'Not built higher':'Left open'}: another floor here would cost ${Math.abs(d.total).toFixed(1)} points, mostly ${d.worst?d.worst.phrase:'overall'}.`;
+      else why=`Another floor would score ${d.total.toFixed(1)} points higher. Try New variation.`;}}
+  return {title:h[c]?'Column':'Open ground',lines,why};
+}
+function explainCell(idx){
+  if(live.entry.inp.mode==='flock'){const c=idx%NN,f=Math.floor(idx/NN),zi=f<live.ctx.mf?live.ctx.zoneAt[idx]:-1,zn=zi>=0?live.ctx.zs[zi]:null;
+    return explainForces(c,zn&&zn.type<2?zn.name:'Unassigned floor area',[`${f===0?'Ground floor':'Floor '+f} of ${live.h[c]}`]);}
+  const ctx=live.ctx,h=live.h,f=Math.floor(idx/NN),c=idx%NN,P=ctx.P,lines=[];let why='';
+  const zi=f<ctx.mf?ctx.zoneAt[f*NN+c]:-1,zn=zi>=0?ctx.zs[zi]:null;
+  const prog=zn&&zn.type<2?zn.name:'Unassigned floor area';
+  lines.push(`${f===0?'Ground floor':'Floor '+f}, ${fmt(P.bay*P.bay)} m²`);
+  const dist=live.e.dist?live.e.dist[f*NN+c]:0;
+  if(dist>0){const m=Math.round((dist-.5)*P.bay);lines.push(dist<=ctx.depthB?`About ${m} m from a facade, daylit`:`About ${m} m from a facade, deep plan`);}
+  let top=-1;for(let g=h[c]-1;g>=0;g--)if(!ctx.voidAt[g*NN+c]){top=g;break;}
+  if(f===top&&live.e.litCol&&live.e.litCol[c]>=0)lines.push(`Roof sunlit ${pct(live.e.litCol[c])} of the day`);
+  if(f<top)why=`Kept: supports ${top-f} floor${top-f===1?'':'s'} above.`;
+  else if(h[c]<=ctx.minH[c])why=`Kept: lifts the ${ctx.zs[ctx.topZone[c]].name.toLowerCase()} garden to level ${ctx.minH[c]}.`;
+  else{const nh=h.slice();nh[c]--;while(nh[c]>0&&ctx.voidAt[(nh[c]-1)*NN+c])nh[c]--;const e=HS.evaluate(ctx,nh);const d=goalDelta(live.e,e);
+    if(d&&d.total<0)why=`Kept: removing it would cost ${Math.abs(d.total).toFixed(1)} points, mostly ${d.worst?d.worst.phrase:'overall'}.`;
+    else why='Kept: removing it would barely change the score.';}
+  return {title:prog,lines,why};
+}
+function hover(e){
+  if(!live||previewEntry||solving||building||!$('#start').hidden){hideTip();return;}
+  setNDC(e);let key,fn;
+  const hit=towerOn?ray.intersectObject(cores,false)[0]:null;
+  if(hit&&hit.instanceId!=null){const idx=instCell[hit.instanceId];key='c'+idx;fn=()=>explainCell(idx);}
+  else{const g=groundAt(e);if(!g){hideTip();return;}const x=Math.floor(g.x+N/2),z=Math.floor(g.z+N/2);if(x<0||z<0||x>=N||z>=N){hideTip();return;}const c=z*N+x;key='g'+c;fn=()=>explainColumn(c);}
+  let t=tipCache.get(key);if(!t){t=fn();if(key[0]==='c'){const idx=+key.slice(1);t.lines.push(sensor[idx]?'Facade panels: sun sensor':'Facade panels: follow neighbours');}tipCache.set(key,t);}
+  const tip=$('#tip');tip.innerHTML=`<b>${esc(t.title)}</b>${t.lines.map(l=>`<div>${esc(l)}</div>`).join('')}${t.why?`<div class="why">${esc(t.why)}</div>`:''}`;
+  tip.classList.add('on');const w=tip.offsetWidth,h=tip.offsetHeight;
+  let L=e.clientX+16,T=e.clientY+16;if(L+w>innerWidth-8)L=e.clientX-w-16;if(T+h>innerHeight-8)T=e.clientY-h-16;
+  tip.style.left=L+'px';tip.style.top=T+'px';
+}
+
+/* ================= panels, sun UI, display ================= */
+function togglePanel(id){const p=document.getElementById(id);p.hidden=!p.hidden;document.querySelector(`#topbar [data-p="${id}"]`).setAttribute('aria-pressed',!p.hidden);}
+document.querySelectorAll('#topbar [data-p]').forEach(b=>b.onclick=()=>togglePanel(b.dataset.p));
+function syncPresetUI(){document.querySelectorAll('#presets button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.k===sunPreset));sunMark.visible=sunPreset!=='orbit';buildSunPath();updateSun();}
+document.querySelectorAll('#presets button').forEach(b=>b.onclick=()=>{if(sunPreset===b.dataset.k)return;sunPreset=b.dataset.k;syncPresetUI();requestRebuild(60);});
+$('#tod').oninput=e=>{tod=+e.target.value/1000;if(sunPreset==='orbit')sunA=tod*Math.PI*2;updateSun();};
+const sunIn=$('#sunSpd');sunIn.oninput=()=>{sunSpeed=+sunIn.value/100;$('#sunO').textContent=sunIn.value==='0'?'still':sunIn.value+'%';};
+if(reduce){sunIn.value=6;$('#bSpd').value=60;buildSpeed=60;}
+sunIn.oninput();
+const L={fins:true,zones:true,grid:true,path:true,glass:true,sensors:false};
+function updateSensorNote(){const n=$('#sensorNote');if(!n)return;n.hidden=!showSensors;
+  n.textContent=`Orange fins sense the sun directly: ${sensorStat[0].toLocaleString('en-US')} of ${sensorStat[1].toLocaleString('en-US')} facade panels (${sensorStat[1]?Math.round(sensorStat[0]/sensorStat[1]*100):0}%). Grey fins only follow their neighbours, so every wave starts at an orange one.`;}
+document.querySelectorAll('#display button').forEach(b=>b.onclick=()=>{const k=b.dataset.l;L[k]=!L[k];b.setAttribute('aria-pressed',L[k]);
+  if(k==='glass'){setGlass(L.glass);return;}
+  if(k==='sensors'){showSensors=L.sensors;dirty=true;updateSensorNote();return;}
+  fins.visible=L.fins&&towerOn;showZones=L.zones;zoneLayer.visible=showZones&&!previewEntry;previewLayer.visible=showZones;$('#labels').style.display=(showZones&&!previewEntry)?'':'none';
+  siteGrid.visible=L.grid;pathGroup.visible=north.visible=L.path;});
+
+$('#towerBtn').onclick=()=>setTower(!towerOn);
+document.querySelectorAll('#modeSeg button').forEach(b=>b.onclick=()=>{if(genMode===b.dataset.m)return;genMode=b.dataset.m;syncModeUI();requestRebuild(0);});
+const fa=$('#finAlign'),fs=$('#finSep');
+const syncFin=()=>{finAlign=+fa.value/100;finSep=+fs.value/100;$('#finAlignO').textContent=fa.value;$('#finSepO').textContent=fs.value;};
+fa.oninput=fs.oninput=syncFin;syncFin();
+$('#helpBtn').onclick=openStart;
+const SKIP_KEY='heliostack-start-skip';
+function openStart(){$('#start').hidden=false;try{$('#startSkip').checked=localStorage.getItem(SKIP_KEY)==='1';}catch(e){}setTimeout(()=>$('#startGo').focus(),0);}
+function closeStart(){$('#start').hidden=true;try{localStorage.setItem(SKIP_KEY,$('#startSkip').checked?'1':'0');}catch(e){}}
+$('#startGo').onclick=closeStart;
+$('#start').addEventListener('pointerdown',e=>{if(e.target.id==='start')closeStart();});
+(()=>{let skip=false;try{skip=localStorage.getItem(SKIP_KEY)==='1';}catch(e){}if(skip)$('#start').hidden=true;else openStart();})();
+
+/* ================= camera ================= */
+let tween=null;
+function goView(kind,instant){
+  const tgt=DEF_TARGET.clone();if(kind==='top')tgt.y=0;
+  const dir=kind==='top'?new THREE.Vector3(0,1,.0008).normalize():new THREE.Vector3(1,.82,1).normalize();
+  const to={p:tgt.clone().addScaledVector(dir,90),t:tgt,z:1};
+  if(instant||reduce){camera.position.copy(to.p);controls.target.copy(to.t);camera.zoom=1;camera.updateProjectionMatrix();controls.update();return;}
+  tween={from:{p:camera.position.clone(),t:controls.target.clone(),z:camera.zoom},to,t0:performance.now(),dur:750};
+}
+function runTween(now){
+  if(!tween)return;const u=Math.min(1,(now-tween.t0)/tween.dur),e=u<.5?4*u*u*u:1-Math.pow(-2*u+2,3)/2,{from,to}=tween;
+  const t=from.t.clone().lerp(to.t,e),a=from.p.clone().sub(from.t),b=to.p.clone().sub(to.t),la=a.length(),lb=b.length();a.normalize();b.normalize();
+  const qi=new THREE.Quaternion().slerp(new THREE.Quaternion().setFromUnitVectors(a,b),e);
+  camera.position.copy(t).add(a.applyQuaternion(qi).multiplyScalar(la+(lb-la)*e));controls.target.copy(t);camera.zoom=from.z+(to.z-from.z)*e;camera.updateProjectionMatrix();
+  if(u>=1)tween=null;
+}
+document.querySelectorAll('#topbar [data-v]').forEach(b=>b.onclick=()=>goView(b.dataset.v));
+controls.addEventListener('start',()=>{tween=null;hideTip();});
+function resize(){const w=innerWidth,h=innerHeight;renderer.setSize(w,h,false);const a=w/h,v=VIEW*(a<.8?1.4:1);
+  camera.left=-v*a/2;camera.right=v*a/2;camera.top=v/2;camera.bottom=-v/2;camera.updateProjectionMatrix();}
+addEventListener('resize',resize);
+const dims=[0,1].map(()=>{const d=document.createElement('div');d.className='dim';d.textContent=SITE_M+' m';document.body.appendChild(d);return d;});
+function updateDims(){
+  const o=N/2+1.2,on=siteGrid.visible;
+  [[0,o],[o,0]].forEach((p,i)=>{const [x,y]=toScreen(new THREE.Vector3(p[0],0,p[1]));dims[i].style.display=on?'':'none';dims[i].style.left=x+'px';dims[i].style.top=y+'px';});
+}
+function updateLabels(){
+  updateDims();
+  if(!showZones||previewEntry)return;
+  for(const z of zones){const v=zoneVis.get(z.id);if(!v)continue;const c=centroid(z.pts),[x,y]=toScreen(new THREE.Vector3(c[0],0,c[1]));v.lab.style.left=x+'px';v.lab.style.top=y+'px';}
+}
+
+/* ================= loop ================= */
+let last=performance.now(),frame=0;
+function loop(now){
+  const dt=Math.min(60,now-last);last=now;frame++;
+  pumpSolve();
+  if(building){buildAcc+=dt*buildSpeed/1000;while(buildAcc>=1&&shownFloors<dispTop){buildAcc-=1;shownFloors++;dirty=true;}
+    if(shownFloors>=dispTop){building=false;if(stMode==='building')setStatus('idle');}}
+  if(sunPreset==='orbit')sunA+=sunSpeed*dt*.0004;else{tod+=sunSpeed*dt*.00006;if(tod>1)tod-=1;$('#tod').value=Math.round(tod*1000);}
+  updateSun();
+  if(dirty){rebuildInstances();dirty=false;}
+  if(frame%3===0)computeShadows();
+  stepPanels();if(fins.visible)updateFins();
+  runTween(now);controls.update();renderer.render(scene,camera);
+  updateLabels();placeZoneCard();
+  requestAnimationFrame(loop);
+}
+
+/* ================= start ================= */
+const START=[
+  {type:0,kind:'rect',pts:[[-7,-7],[3,-7],[3,1],[-7,1]],target:16000,lo:2,hi:17,prio:2},
+  {type:1,kind:'rect',pts:[[-7,-1],[7,-1],[7,6],[-7,6]],target:2600,lo:0,hi:1,prio:3},
+  {type:3,kind:'rect',pts:[[3,-8],[8,-8],[8,-2],[3,-2]],target:0,lo:3,hi:6,prio:4},
+  {type:2,kind:'poly',pts:[[-8,3],[-3,3],[-2,7],[-8,8]],target:0,lo:0,hi:0,prio:5}];
+START.forEach(s=>{zones.push({id:nextZoneId++,name:`${TYPES[s.type].name} ${String.fromCharCode(65+(letter++))}`,...s});});
+makeGeoms(params.ffh/params.bay);buildSiteGrid();resize();syncPresetUI();goView('axon',true);
+redrawAllZones();renderParams();renderGoalInputs();setType(0);setTool('orbit');renderHistory();
+startSolve();
+requestAnimationFrame(loop);
+})();
+</script>
+</body></html>
